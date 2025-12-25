@@ -150,13 +150,58 @@ header h1 {
     align-items: center;
 }
 
+#board-wrapper {
+    display: grid;
+    grid-template-columns: 30px 1fr;
+    grid-template-rows: 30px 1fr;
+    gap: 2px;
+    margin-bottom: 15px;
+}
+
+#board-column-labels {
+    grid-column: 2;
+    grid-row: 1;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 2px;
+}
+
+#board-row-labels {
+    grid-column: 1;
+    grid-row: 2;
+    display: grid;
+    grid-template-rows: repeat(5, 1fr);
+    gap: 2px;
+}
+
 #board {
+    grid-column: 2;
+    grid-row: 2;
     display: grid;
     gap: 2px;
     background: #333;
     padding: 2px;
     border-radius: 5px;
-    margin-bottom: 15px;
+}
+
+.column-label, .row-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 0.9em;
+    color: #333;
+    background: #f0f0f0;
+    border-radius: 3px;
+}
+
+.column-label {
+    height: 30px;
+}
+
+.row-label {
+    width: 30px;
+    height: 60px;
 }
 
 .cell {

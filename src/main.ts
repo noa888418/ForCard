@@ -136,14 +136,37 @@ class GameUI {
     if (!this.gameManager) return;
 
     const boardElement = document.getElementById('board');
-    if (!boardElement) return;
+    const columnLabelsElement = document.getElementById('board-column-labels');
+    const rowLabelsElement = document.getElementById('board-row-labels');
+    
+    if (!boardElement || !columnLabelsElement || !rowLabelsElement) return;
 
     const board = this.gameManager.getBoard();
     const size = board.getSize();
 
+    // 盤面のグリッド設定
     boardElement.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
     boardElement.innerHTML = '';
 
+    // 列番号（上）
+    columnLabelsElement.innerHTML = '';
+    for (let x = 0; x < size; x++) {
+      const label = document.createElement('div');
+      label.className = 'column-label';
+      label.textContent = String.fromCharCode(65 + x); // A, B, C, D, E
+      columnLabelsElement.appendChild(label);
+    }
+
+    // 行番号（左）
+    rowLabelsElement.innerHTML = '';
+    for (let y = 0; y < size; y++) {
+      const label = document.createElement('div');
+      label.className = 'row-label';
+      label.textContent = (y + 1).toString(); // 1, 2, 3, 4, 5
+      rowLabelsElement.appendChild(label);
+    }
+
+    // マスを生成
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const cell = board.getCell(x, y);
@@ -169,7 +192,8 @@ class GameUI {
         }
 
         cellElement.textContent = cell.stability.toString();
-        cellElement.title = `(${x}, ${y}) 安定度: ${cell.stability}`;
+        const positionStr = this.formatPosition(x, y);
+        cellElement.title = `${positionStr} (${x}, ${y}) 安定度: ${cell.stability}`;
 
         // クリックイベント（常に設定、条件はselectPosition内でチェック）
         cellElement.addEventListener('click', (e) => {
@@ -179,8 +203,8 @@ class GameUI {
           }
         });
 
-        // ホバーイベント（カード選択中のみ）
-        if (this.selectedCardId && this.currentPlayer === 'A') {
+        // ホバーイベント（カード選択中のみ、かつまだ位置を選択していない場合）
+        if (this.selectedCardId && this.currentPlayer === 'A' && !this.selectedPosition) {
           cellElement.style.cursor = 'pointer';
           cellElement.addEventListener('mouseenter', () => {
             this.hoveredPosition = { x, y };
@@ -191,7 +215,7 @@ class GameUI {
             this.updateCardTargets();
           });
         } else {
-          cellElement.style.cursor = 'default';
+          cellElement.style.cursor = this.selectedCardId && this.currentPlayer === 'A' ? 'pointer' : 'default';
         }
 
         boardElement.appendChild(cellElement);
@@ -200,6 +224,11 @@ class GameUI {
 
     // 初期の適用範囲表示を更新
     this.updateCardTargets();
+  }
+
+  // 座標を文字列に変換（例：B2）
+  private formatPosition(x: number, y: number): string {
+    return `${String.fromCharCode(65 + x)}${y + 1}`;
   }
 
   // カードの適用範囲表示を更新（ホバー時はupdateBoardを呼ばずにこれだけ呼ぶ）
@@ -219,7 +248,22 @@ class GameUI {
     const player = this.gameManager.getPlayer('A');
     const card = player.getHand().find(c => c.getId() === this.selectedCardId);
     
-    if (!card || !this.hoveredPosition) {
+    if (!card) {
+      // 全てのcard-targetクラスを削除
+      const boardElement = document.getElementById('board');
+      if (boardElement) {
+        boardElement.querySelectorAll('.card-target').forEach(el => {
+          el.classList.remove('card-target');
+        });
+      }
+      return;
+    }
+
+    // 適用範囲を計算する位置を決定
+    // 選択済みの位置がある場合はそれを使い、ない場合はホバー位置を使う
+    const targetPosition = this.selectedPosition || this.hoveredPosition;
+    
+    if (!targetPosition) {
       // 全てのcard-targetクラスを削除
       const boardElement = document.getElementById('board');
       if (boardElement) {
@@ -233,7 +277,7 @@ class GameUI {
     // 適用範囲を計算
     let targetPositions: Position[] = [];
     try {
-      targetPositions = card.getTargetPositions(board, this.hoveredPosition, 'A');
+      targetPositions = card.getTargetPositions(board, targetPosition, 'A');
     } catch (e) {
       // エラーは無視
     }
@@ -288,7 +332,33 @@ class GameUI {
     const hand = player.getHand();
     const usedCards = player.getUsedCards();
 
-    hand.forEach(card => {
+    // 手札をソート：色カードを番号順、その後特殊カードを順番に
+    const sortedHand = [...hand].sort((a, b) => {
+      const idA = a.getId();
+      const idB = b.getId();
+      
+      // 色カードと特殊カードを分ける
+      const isColorA = idA.startsWith('C');
+      const isColorB = idB.startsWith('C');
+      
+      if (isColorA && !isColorB) return -1; // 色カードが先
+      if (!isColorA && isColorB) return 1;  // 特殊カードが後
+      
+      // 同じ種類なら番号で比較
+      if (isColorA && isColorB) {
+        // 色カード: C01, C02, ... C30
+        const numA = parseInt(idA.substring(1));
+        const numB = parseInt(idB.substring(1));
+        return numA - numB;
+      } else {
+        // 特殊カード: S01, S02, ... S10
+        const numA = parseInt(idA.substring(1));
+        const numB = parseInt(idB.substring(1));
+        return numA - numB;
+      }
+    });
+
+    sortedHand.forEach(card => {
       const cardElement = document.createElement('div');
       cardElement.className = 'card';
       if (usedCards.has(card.getId())) {
@@ -445,12 +515,15 @@ class GameUI {
     // 実際のGameManagerへの記録は「決定」ボタンを押した時に行う
     const cardInfo = document.getElementById('selected-card-info');
     if (cardInfo) {
-      cardInfo.textContent = `選択済み: マス (${x}, ${y}) - 「決定」ボタンをクリック`;
+      const positionStr = this.formatPosition(x, y);
+      cardInfo.textContent = `選択済み: マス ${positionStr} - 「決定」ボタンをクリック`;
     }
 
-    // ホバー状態をクリア
+    // ホバー状態をクリア（選択済み位置で適用範囲を表示するため）
     this.hoveredPosition = null;
 
+    // 適用範囲を更新（選択済み位置で表示）
+    this.updateCardTargets();
     this.updateUI();
   }
 
@@ -477,6 +550,9 @@ class GameUI {
       cardInfo.textContent = `決定済み - ${this.playerBDecided ? '公開フェーズへ...' : 'CPUの決定を待っています...'}`;
     }
     
+    // 決定後は適用範囲を非表示
+    this.hoveredPosition = null;
+    this.updateCardTargets();
     this.updateUI();
     this.checkBothDecided();
   }
@@ -505,10 +581,12 @@ class GameUI {
         const cardA = playerA.getHand().find(c => c.getId() === selectionA.cardId);
         const cardB = playerB.getHand().find(c => c.getId() === selectionB.cardId);
         
+        const posA = this.formatPosition(selectionA.targetPosition.x, selectionA.targetPosition.y);
+        const posB = this.formatPosition(selectionB.targetPosition.x, selectionB.targetPosition.y);
         cardInfo.innerHTML = `
           <div style="margin-bottom: 10px; font-weight: bold; color: #667eea;">📢 公開フェーズ</div>
-          <div style="margin-bottom: 5px;">あなた: <strong>${cardA?.getName()}</strong> (${selectionA.cardId}) → マス (${selectionA.targetPosition.x}, ${selectionA.targetPosition.y})</div>
-          <div>CPU: <strong>${cardB?.getName()}</strong> (${selectionB.cardId}) → マス (${selectionB.targetPosition.x}, ${selectionB.targetPosition.y})</div>
+          <div style="margin-bottom: 5px;">あなた: <strong>${cardA?.getName()}</strong> (${selectionA.cardId}) → マス ${posA}</div>
+          <div>CPU: <strong>${cardB?.getName()}</strong> (${selectionB.cardId}) → マス ${posB}</div>
         `;
       }
     }

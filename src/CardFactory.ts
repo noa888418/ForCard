@@ -54,19 +54,58 @@ export class CardFactory {
     return cards;
   }
 
-  // デフォルトデッキ（15枚）を作成
+  // デフォルトデッキ（15枚）をランダムに作成
   static createDefaultDeck(): Card[] {
     const allCards = this.createAllCards();
-    // デフォルトでは弱いカードと特殊カードを中心に選ぶ
-    // 実際のゲームでは、バランスを考慮して選択
-    const defaultIds = [
-      'C01', 'C02', 'C03', 'C04', 'C05',
-      'C11', 'C12', 'C13', 'C14', 'C15',
-      'C21', 'C22', 'C23',
-      'S01', 'S02'
-    ];
+    
+    // カテゴリ別に分類
+    const weakCards = allCards.filter(c => {
+      const id = c.getId();
+      return id.startsWith('C') && parseInt(id.substring(1)) >= 1 && parseInt(id.substring(1)) <= 10;
+    });
+    const mediumCards = allCards.filter(c => {
+      const id = c.getId();
+      return id.startsWith('C') && parseInt(id.substring(1)) >= 11 && parseInt(id.substring(1)) <= 20;
+    });
+    const strongCards = allCards.filter(c => {
+      const id = c.getId();
+      return id.startsWith('C') && parseInt(id.substring(1)) >= 21 && parseInt(id.substring(1)) <= 30;
+    });
+    const specialCards = allCards.filter(c => c.getId().startsWith('S'));
 
-    return allCards.filter(card => defaultIds.includes(card.getId()));
+    // 手札15枚の配分（色カード:特殊カード = 7:3）
+    // 色カード10枚、特殊カード5枚（10:5 = 2:1 ≈ 7:3.5、ほぼ7:3）
+    const selectedCards: Card[] = [];
+
+    // 色カード10枚を選ぶ（弱:中:強 = 4:3:3 くらい）
+    const weakSelected = this.randomSelect(weakCards, 4);
+    const mediumSelected = this.randomSelect(mediumCards, 3);
+    const strongSelected = this.randomSelect(strongCards, 3);
+
+    selectedCards.push(...weakSelected, ...mediumSelected, ...strongSelected);
+
+    // 特殊カード5枚を選ぶ
+    const specialSelected = this.randomSelect(specialCards, 5);
+    selectedCards.push(...specialSelected);
+
+    // シャッフル
+    return this.shuffle(selectedCards);
+  }
+
+  // 配列からランダムにn枚選択
+  private static randomSelect<T>(array: T[], n: number): T[] {
+    const shuffled = [...array].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, Math.min(n, array.length));
+  }
+
+  // 配列をシャッフル
+  private static shuffle<T>(array: T[]): T[] {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
   }
 
   // カードIDからカードを作成
