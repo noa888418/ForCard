@@ -1,0 +1,19 @@
+{
+  "name": "forcard",
+  "version": "1.0.0",
+  "description": "ForCard - A strategic card-based territory control game",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "serve": "npx http-server . -p 8080 -c-1"
+  },
+  "keywords": ["game", "card-game", "strategy"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.10.0"
+  }
+}
+

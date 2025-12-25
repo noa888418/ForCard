@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>ForCard - 戦略カードゲーム</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>ForCard</h1>
+            <div id="game-info">
+                <div>ターン: <span id="turn-counter">1</span> / <span id="total-turns">15</span></div>
+                <div id="game-state">準備中</div>
+            </div>
+        </header>
+
+        <div id="game-container">
+            <div id="player-b-section" class="player-section">
+                <h2>CPU</h2>
+                <div class="score">スコア: <span id="score-b">0</span></div>
+                <div class="hand" id="hand-b"></div>
+            </div>
+
+            <div id="board-container">
+                <div id="board"></div>
+                <div id="board-info">
+                    <div id="selected-card-info"></div>
+                </div>
+            </div>
+
+            <div id="player-a-section" class="player-section">
+                <h2>あなた</h2>
+                <div class="score">スコア: <span id="score-a">0</span></div>
+                <div class="hand" id="hand-a"></div>
+            </div>
+        </div>
+
+        <div id="controls">
+            <button id="resolve-btn" disabled>決定</button>
+            <button id="reset-btn">リセット</button>
+        </div>
+
+        <div id="result-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>ゲーム終了</h2>
+                <div id="result-content"></div>
+                <button id="close-result-btn">閉じる</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="dist/main.js?v=2"></script>
+</body>
+</html>
+
