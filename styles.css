@@ -65,6 +65,22 @@ header h1 {
     color: #764ba2;
 }
 
+.player-status {
+    font-size: 0.9em;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 5px;
+    color: #856404;
+    font-weight: 500;
+    display: none;
+}
+
+.player-status:not(:empty) {
+    display: block;
+}
+
 .hand {
     display: flex;
     flex-direction: column;
@@ -121,13 +137,25 @@ header h1 {
 }
 
 .card-type.color {
-    background: #4caf50;
+    background: #4caf50; /* 緑 */
+    color: white;
+}
+
+.card-type.fort {
+    background: #f44336; /* 赤 */
     color: white;
 }
 
 .card-type.special {
-    background: #ff9800;
+    background: #ff9800; /* オレンジ */
     color: white;
+}
+
+.card-strength {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: #ffd700;
+    margin-left: 5px;
 }
 
 .card-name {
@@ -282,6 +310,41 @@ header h1 {
     color: #666;
 }
 
+.action-log {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 15px;
+    border-radius: 5px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 0.9em;
+    line-height: 1.6;
+    margin-bottom: 10px;
+}
+
+.log-entry {
+    padding: 4px 0;
+    padding-left: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.log-header {
+    padding: 8px 0;
+    margin-top: 8px;
+    margin-bottom: 4px;
+    font-weight: bold;
+    color: #667eea;
+    border-bottom: 2px solid #667eea;
+    text-align: center;
+}
+
+.log-header:first-child {
+    margin-top: 0;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
 #board-info {
     width: 100%;
     text-align: center;
@@ -299,6 +362,229 @@ header h1 {
     justify-content: center;
     gap: 10px;
     margin-top: 20px;
+    flex-wrap: wrap;
+}
+
+.hidden {
+    display: none !important;
+}
+
+#cancel-btn {
+    background: #ff9800;
+    color: white;
+}
+
+#cancel-btn:hover {
+    background: #f57c00;
+}
+
+.mode-selector {
+    margin-bottom: 15px;
+    padding: 10px;
+    background: #f5f5f5;
+    border-radius: 5px;
+}
+
+.mode-selector label {
+    margin-right: 15px;
+    cursor: pointer;
+}
+
+.mode-selector input[type="radio"] {
+    margin-right: 5px;
+}
+
+.card-selector-container {
+    margin-bottom: 15px;
+}
+
+.card-selector-container label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #333;
+}
+
+.card-selector {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1em;
+    background: white;
+    cursor: pointer;
+}
+
+.card-selector:hover {
+    border-color: #667eea;
+}
+
+.card-selector:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+}
+
+.dev-mode-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background 0.3s;
+}
+
+.dev-mode-btn:hover {
+    background: #5a6268;
+}
+
+.dev-mode-btn.active {
+    background: #28a745;
+}
+
+.dev-mode-panel {
+    background: rgba(255, 255, 255, 0.98);
+    padding: 20px;
+    border-radius: 10px;
+    margin-top: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 2px solid #667eea;
+}
+
+.dev-mode-panel.hidden {
+    display: none;
+}
+
+.dev-mode-panel h3 {
+    margin-bottom: 15px;
+    color: #667eea;
+    font-size: 1.2em;
+}
+
+.dev-setting {
+    margin-bottom: 15px;
+}
+
+.dev-setting label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #333;
+}
+
+.dev-setting select,
+.dev-setting input[type="number"] {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 1em;
+}
+
+.dev-setting textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-size: 0.9em;
+    font-family: monospace;
+    resize: vertical;
+}
+
+.dev-setting small {
+    display: block;
+    margin-top: 5px;
+    color: #666;
+    font-size: 0.85em;
+}
+
+.dev-card-selector {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.dev-card-selector select {
+    flex: 1;
+}
+
+.dev-card-selector button {
+    padding: 8px 15px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.dev-card-selector button:hover {
+    background: #5568d3;
+}
+
+.dev-selected-cards {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f5f5f5;
+    border-radius: 5px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.dev-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.dev-card-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    background: white;
+    border-radius: 3px;
+}
+
+.dev-remove-card-btn {
+    padding: 4px 10px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.85em;
+}
+
+.dev-remove-card-btn:hover {
+    background: #c82333;
+}
+
+.dev-card-count {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #ddd;
+    font-weight: bold;
+    color: #667eea;
+}
+
+#dev-apply-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    width: 100%;
+    transition: background 0.3s;
+}
+
+#dev-apply-btn:hover {
+    background: #218838;
 }
 
 button {

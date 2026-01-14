@@ -23,6 +23,7 @@
             <div id="player-b-section" class="player-section">
                 <h2>CPU</h2>
                 <div class="score">スコア: <span id="score-b">0</span></div>
+                <div id="player-b-status" class="player-status"></div>
                 <div class="hand" id="hand-b"></div>
             </div>
 
@@ -33,20 +34,61 @@
                     <div id="board"></div>
                 </div>
                 <div id="board-info">
-                    <div id="selected-card-info"></div>
+                    <div id="action-log" class="action-log"></div>
+                    <div id="selected-card-info" style="display: none;"></div>
                 </div>
             </div>
 
             <div id="player-a-section" class="player-section">
                 <h2>あなた</h2>
                 <div class="score">スコア: <span id="score-a">0</span></div>
+                <div id="player-a-status" class="player-status"></div>
                 <div class="hand" id="hand-a"></div>
             </div>
         </div>
 
         <div id="controls">
             <button id="resolve-btn" disabled>決定</button>
+            <button id="retry-btn" class="hidden">選びなおす</button>
             <button id="reset-btn">リセット</button>
+            <button id="dev-mode-toggle" class="dev-mode-btn">🔧 開発者モード</button>
+        </div>
+
+        <div id="dev-mode-panel" class="dev-mode-panel hidden">
+            <h3>開発者モード設定</h3>
+            <div class="dev-setting">
+                <label for="dev-board-size">盤面サイズ:</label>
+                <select id="dev-board-size">
+                    <option value="3">3×3</option>
+                    <option value="4">4×4</option>
+                    <option value="5" selected>5×5</option>
+                    <option value="6">6×6</option>
+                    <option value="7">7×7</option>
+                </select>
+            </div>
+            <div class="dev-setting">
+                <label for="dev-total-turns">総ターン数:</label>
+                <input type="number" id="dev-total-turns" min="1" max="30" value="15">
+            </div>
+            <div class="dev-setting">
+                <label>手札カード選択:</label>
+                <div class="dev-card-selector">
+                    <select id="dev-card-selector">
+                        <option value="">カードを選択してください</option>
+                    </select>
+                    <button id="dev-add-card-btn" type="button">追加</button>
+                </div>
+                <div id="dev-selected-cards-list" class="dev-selected-cards"></div>
+                <small>総ターン数と同じ枚数まで選択可能。空欄の場合はランダムデッキが生成されます。</small>
+            </div>
+            <div class="dev-setting">
+                <label for="dev-player-b-mode">プレイヤーBのモード:</label>
+                <select id="dev-player-b-mode">
+                    <option value="cpu" selected>CPU</option>
+                    <option value="manual">手動</option>
+                </select>
+            </div>
+            <button id="dev-apply-btn">設定を適用</button>
         </div>
 
         <div id="result-modal" class="modal hidden">

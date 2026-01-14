@@ -8,12 +8,13 @@ export type Position = {
 export type PlayerId = 'A' | 'B';
 
 // カードの種類
-export type CardType = 'color' | 'special';
+export type CardType = 'color' | 'fort' | 'special';
 
 // カードID
 export type ColorCardId = `C${number}`;
+export type FortCardId = `F${number}`;
 export type SpecialCardId = `S${number}`;
-export type CardId = ColorCardId | SpecialCardId;
+export type CardId = ColorCardId | FortCardId | SpecialCardId;
 
 // カード選択情報
 export type CardSelection = {

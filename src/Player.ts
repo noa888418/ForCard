@@ -52,9 +52,18 @@ export class Player {
     return this.hand.length - this.usedCards.size;
   }
 
-  // 手札に色カードがあるか
+  // 手札に色カード（Color Cards）があるか（強化カードFxxは含まない）
   hasColorCardInHand(): boolean {
-    return this.getHand().some(card => card.getType() === 'color');
+    return this.getHand().some(card => {
+      const id = card.getId();
+      // 色カードはCxx（Fxxは強化カードなので除外）
+      return id.startsWith('C');
+    });
+  }
+
+  // カードIDでカードを取得（usedCardsに含まれていても取得可能）
+  getCardById(cardId: CardId): Card | null {
+    return this.hand.find(c => c.getId() === cardId) || null;
   }
 }
 
