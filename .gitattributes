@@ -1,0 +1,4 @@
+# シェルスクリプトに実行権限を付与
+起動.sh text eol=lf
+起動.command text eol=lf
+

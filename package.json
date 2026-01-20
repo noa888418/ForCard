@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "serve": "npx http-server . -p 8080 -c-1"
+    "serve": "npx http-server . -p 8080 -c-1",
+    "start": "npm run build && npm run serve"
   },
   "keywords": ["game", "card-game", "strategy"],
   "author": "",

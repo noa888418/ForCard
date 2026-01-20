@@ -28,8 +28,12 @@ export class S01_ReversalField extends SpecialCard {
     const currentTurn = options?.currentTurn || 0;
     const totalTurns = options?.totalTurns || 15;
 
-    if (currentTurn <= 12) {
-      // ラウンド1〜12: 全反転効果
+    // 有効ターン数 = 全ターン数 - 3
+    // カードの残り枚数が3枚より多い間は有効となる
+    const effectiveTurns = totalTurns - 3;
+
+    if (currentTurn <= effectiveTurns) {
+      // 有効ターン数まで: 全反転効果
       if (!this.turnSnapshot) {
         this.turnSnapshot = board.clone();
         this.usedTurn = currentTurn;
@@ -46,7 +50,7 @@ export class S01_ReversalField extends SpecialCard {
         }
       }
     } else {
-      // ラウンド13〜15: C01と同じ効果
+      // 有効ターン数を超えた場合: C01と同じ効果
       const cell = board.getCell(position.x, position.y);
       if (cell) {
         const delta = playerId === 'A' ? 1 : -1;

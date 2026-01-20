@@ -656,6 +656,28 @@ class GameUI {
         const positionStr = this.formatPosition(x, y);
         cellElement.title = `${positionStr} (${x}, ${y}) 安定度: ${cell.stability}`;
 
+        // タイムボムの表示
+        const timeBombs = this.gameManager.getTimeBombs();
+        for (const bombData of timeBombs) {
+          const bombPositions = this.getBombBlastArea(bombData.position);
+          const isBombCenter = bombData.position.x === x && bombData.position.y === y;
+          const isInBlastArea = bombPositions.some(p => p.x === x && p.y === y);
+          
+          if (isBombCenter) {
+            // タイムボムの中心マス
+            cellElement.classList.add('time-bomb-center');
+            const bombInfo = document.createElement('div');
+            bombInfo.className = 'time-bomb-info';
+            bombInfo.textContent = `💣${bombData.remainingTurns}`;
+            bombInfo.title = `タイムボム（プレイヤー${bombData.playerId}設置、残り${bombData.remainingTurns}ターンで爆発）`;
+            cellElement.appendChild(bombInfo);
+            cellElement.title = `${positionStr} (${x}, ${y}) 安定度: ${cell.stability} | タイムボム（残り${bombData.remainingTurns}ターン）`;
+          } else if (isInBlastArea) {
+            // 爆心地3×3内のマス
+            cellElement.classList.add('time-bomb-blast-area');
+          }
+        }
+
         // クリックイベント（常に設定、条件はselectPosition内でチェック）
         cellElement.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -728,6 +750,23 @@ class GameUI {
   // 座標を文字列に変換（例：B2）
   private formatPosition(x: number, y: number): string {
     return `${String.fromCharCode(65 + x)}${y + 1}`;
+  }
+
+  // タイムボムの爆心地3×3エリアを取得
+  private getBombBlastArea(center: Position): Position[] {
+    const positions: Position[] = [];
+    if (!this.gameManager) return positions;
+    
+    const board = this.gameManager.getBoard();
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const pos = { x: center.x + dx, y: center.y + dy };
+        if (board.isValidPosition(pos.x, pos.y)) {
+          positions.push(pos);
+        }
+      }
+    }
+    return positions;
   }
 
   // カードの適用範囲表示を更新（ホバー時はupdateBoardを呼ばずにこれだけ呼ぶ）
@@ -1111,15 +1150,42 @@ class GameUI {
       
       // ターン数によって効果が変わるカードの説明を動的に変更
       let description = card.getDescription();
+      let turnInfo: string | null = null;
+      let isEffectChanged = false;
+      
       if (this.gameManager) {
         const currentTurn = this.gameManager.getCurrentTurn();
+        const totalTurns = this.gameManager.getTotalTurns();
+        const remainingTurns = this.gameManager.getRemainingTurns();
         const cardId = card.getId();
         
         if (cardId === 'S01') {
           // S01: リバーサル・フィールド
-          // ターン13以降はC01と同じ効果
-          if (currentTurn >= 13) {
-            description = '任意のマス1つの安定度を+1'; // C01と同じ説明
+          // 有効ターン数 = 全ターン数 - 3
+          // 有効ターン数まで: 全反転効果
+          // それ以降: C01と同じ効果
+          const effectiveTurns = totalTurns - 3;
+          if (currentTurn <= effectiveTurns) {
+            const turnsUntilChange = effectiveTurns + 1 - currentTurn;
+            turnInfo = `【全反転効果】残り${turnsUntilChange}ターンで効果切替`;
+            description = '使用時点の盤面を記録し、有効ターン内なら全マスの安定度符号を反転';
+          } else {
+            isEffectChanged = true;
+            description = '任意のマス1つの安定度を+1（C01：単点塗りと同じ効果）';
+            turnInfo = '【効果切替済み】C01と同じ効果';
+          }
+        } else if (cardId === 'S09') {
+          // S09: ラストフォートレス
+          // 残り4ターン以上: 早期使用モード
+          // 残り3ターン以内: 覚醒状態
+          if (remainingTurns >= 4) {
+            const turnsUntilChange = remainingTurns - 3;
+            turnInfo = `【早期使用モード】残り${turnsUntilChange}ターンで覚醒`;
+            description = '自色連結領域を対象。ランダム1〜3マス+1';
+          } else {
+            isEffectChanged = true;
+            turnInfo = '【覚醒状態】領域を要塞化し、他をリセット';
+            description = '自色連結領域を対象。領域内の自色マスを2倍、領域外の自色マスをリセット';
           }
         } else if (cardId === 'S04') {
           // S04: ダブルアクション
@@ -1128,7 +1194,17 @@ class GameUI {
         }
       }
       
-      descDiv.textContent = description;
+      // 説明テキストを設定
+      if (turnInfo) {
+        descDiv.innerHTML = `<div class="card-desc-main">${description}</div><div class="card-turn-info ${isEffectChanged ? 'effect-changed' : ''}">${turnInfo}</div>`;
+      } else {
+        descDiv.textContent = description;
+      }
+      
+      // 効果が切り替わった場合、カードに視覚的なマークを追加
+      if (isEffectChanged) {
+        cardElement.classList.add('effect-changed');
+      }
 
       cardElement.appendChild(header);
       cardElement.appendChild(nameDiv);

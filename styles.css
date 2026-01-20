@@ -97,6 +97,7 @@ header h1 {
     cursor: pointer;
     transition: all 0.3s;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    position: relative;
 }
 
 .card:hover {
@@ -166,6 +167,43 @@ header h1 {
 .card-description {
     font-size: 0.9em;
     color: #666;
+}
+
+.card-desc-main {
+    margin-bottom: 5px;
+}
+
+.card-turn-info {
+    font-size: 0.85em;
+    padding: 4px 8px;
+    margin-top: 5px;
+    border-radius: 4px;
+    background: #e3f2fd;
+    color: #1976d2;
+    font-weight: 500;
+    border-left: 3px solid #2196f3;
+}
+
+.card-turn-info.effect-changed {
+    background: #fff3e0;
+    color: #e65100;
+    border-left-color: #ff9800;
+    font-weight: bold;
+}
+
+.card.effect-changed {
+    border-color: #ff9800;
+    background: #fff8e1;
+    box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
+}
+
+.card.effect-changed::before {
+    content: "⚡";
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    font-size: 1.2em;
+    color: #ff9800;
 }
 
 #board-container {
@@ -257,6 +295,42 @@ header h1 {
 .cell.player-a {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
+}
+
+/* タイムボムのスタイル */
+.cell.time-bomb-center {
+    border: 3px solid #ff5722;
+    box-shadow: 0 0 10px rgba(255, 87, 34, 0.5);
+    animation: pulse-bomb 1.5s ease-in-out infinite;
+}
+
+.cell.time-bomb-blast-area {
+    border: 2px dashed #ff9800;
+    background: rgba(255, 152, 0, 0.1);
+}
+
+.time-bomb-info {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background: rgba(255, 87, 34, 0.9);
+    color: white;
+    font-size: 0.7em;
+    font-weight: bold;
+    padding: 2px 4px;
+    border-radius: 3px;
+    z-index: 5;
+    min-width: 20px;
+    text-align: center;
+}
+
+@keyframes pulse-bomb {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(255, 87, 34, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(255, 87, 34, 0.8);
+    }
 }
 
 .cell.player-b {

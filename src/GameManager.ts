@@ -23,7 +23,7 @@ export class GameManager {
   private totalTurns: number = 15;
   private state: GameState = 'setup';
   private selections: Map<PlayerId, CardSelection | null> = new Map();
-  private timeBombs: Array<{ bomb: S07_TimeBomb; position: Position; playerId: PlayerId; turn: number }> = [];
+  private timeBombs: Array<{ bomb: S07_TimeBomb; position: Position; playerId: PlayerId; turn: number; explosionTurn: number }> = [];
   private doubleActionActive: Map<PlayerId, boolean> = new Map();
   private doubleActionRemaining: Map<PlayerId, number> = new Map(); // ダブルアクション中に残りのプレイ回数（1または2）
   private doubleActionFirstSelection: Map<PlayerId, CardSelection | null> = new Map(); // ダブルアクション中の1枚目のカード選択
@@ -412,10 +412,7 @@ export class GameManager {
         this.state = 'selecting';
         return;
       }
-      
-      // タイムボムの爆発チェック
-      this.checkTimeBombs();
-      
+
       // プレイヤーBのカード効果を適用
       const colorCardB = cardB.getType() === 'color' ? (cardB as ColorCard) : null;
       const fortCardB = cardB.getType() === 'fort' ? (cardB as FortCard) : null;
@@ -430,7 +427,10 @@ export class GameManager {
         // 相手のカードがないので、nullを渡す
         this.applySpecialCard(cardB as SpecialCard, selectionB.targetPosition, 'B', null as any, null as any);
       }
-      
+
+      // ターン終了時点の盤面に対してタイムボムの爆発を処理
+      this.checkTimeBombs();
+
       this.endTurn();
       return;
     }
@@ -446,10 +446,7 @@ export class GameManager {
         this.state = 'selecting';
         return;
       }
-      
-      // タイムボムの爆発チェック
-      this.checkTimeBombs();
-      
+
       // プレイヤーAのカード効果を適用
       const colorCardA = cardA.getType() === 'color' ? (cardA as ColorCard) : null;
       const fortCardA = cardA.getType() === 'fort' ? (cardA as FortCard) : null;
@@ -464,7 +461,10 @@ export class GameManager {
         // 相手のカードがないので、nullを渡す
         this.applySpecialCard(cardA as SpecialCard, selectionA.targetPosition, 'A', null as any, null as any);
       }
-      
+
+      // ターン終了時点の盤面に対してタイムボムの爆発を処理
+      this.checkTimeBombs();
+
       this.endTurn();
       return;
     }
@@ -483,9 +483,6 @@ export class GameManager {
       this.state = 'selecting';
       return;
     }
-
-    // タイムボムの爆発チェック
-    this.checkTimeBombs();
 
     // 特殊カードの相互干渉チェック
     const specialJammerA = cardA.getType() === 'special' && cardA.getId() === 'S05';
@@ -544,6 +541,9 @@ export class GameManager {
         this.applySpecialCard(cardB as SpecialCard, selectionB.targetPosition, 'B', cardA, selectionA);
       }
     }
+
+    // ターン終了時点の盤面に対してタイムボムの爆発を処理
+    this.checkTimeBombs();
 
     // ターン終了処理
     this.endTurn();
@@ -685,11 +685,16 @@ export class GameManager {
       const bomb = card as S07_TimeBomb;
       const options = { currentTurn: this.currentTurn };
       bomb.applyEffect(this.board, position, playerId, options);
+      // 設置から2ターン後の自分ターン終了時に爆発
+      // 設置ターン2の場合、ターン4の終了時に爆発（設置ターン + 2 = 爆発ターン）
+      const explosionTurn = this.currentTurn + 2;
+      console.log(`[GameManager.applySpecialCard] S07タイムボム設置: プレイヤー${playerId}, 位置(${position.x},${position.y}), 設置ターン${this.currentTurn}, 爆発ターン${explosionTurn}`);
       this.timeBombs.push({
         bomb,
         position,
         playerId,
-        turn: this.currentTurn
+        turn: this.currentTurn,
+        explosionTurn: explosionTurn
       });
       return;
     }
@@ -741,22 +746,60 @@ export class GameManager {
   }
 
   private checkTimeBombs(): void {
+    if (this.timeBombs.length === 0) {
+      return; // タイムボムがない場合は何もしない
+    }
+
+    console.log(`[GameManager.checkTimeBombs] チェック開始: 現在ターン${this.currentTurn}, タイムボム数${this.timeBombs.length}`);
+    
     const toExplode: typeof this.timeBombs = [];
     const remaining: typeof this.timeBombs = [];
 
     for (const bombData of this.timeBombs) {
-      if (this.currentTurn >= bombData.bomb.getExplosionTurn()) {
+      // 設置から2ターン後の自分ターン終了時に爆発
+      // 設置ターン2の場合、ターン4の終了時に爆発（設置ターン + 2 = 爆発ターン）
+      // 現在のターンが爆発ターン以上の場合、爆発する
+      const explosionTurn = bombData.explosionTurn;
+      console.log(`[GameManager.checkTimeBombs] タイムボム確認: プレイヤー${bombData.playerId}, 位置(${bombData.position.x},${bombData.position.y}), 設置ターン${bombData.turn}, 爆発ターン${explosionTurn}, 現在ターン${this.currentTurn}`);
+      
+      if (this.currentTurn >= explosionTurn) {
         toExplode.push(bombData);
       } else {
         remaining.push(bombData);
       }
     }
 
+    if (toExplode.length > 0) {
+      console.log(`[GameManager.checkTimeBombs] ${toExplode.length}個のタイムボムが爆発します`);
+    }
+
     for (const bombData of toExplode) {
+      console.log(`[GameManager.checkTimeBombs] タイムボム爆発: プレイヤー${bombData.playerId}, 位置(${bombData.position.x},${bombData.position.y}), 設置ターン${bombData.turn}, 爆発ターン${bombData.explosionTurn}, 現在ターン${this.currentTurn}`);
       bombData.bomb.explode(this.board, bombData.position, bombData.playerId);
     }
 
     this.timeBombs = remaining;
+    
+    if (toExplode.length > 0) {
+      console.log(`[GameManager.checkTimeBombs] 爆発後、残りタイムボム数: ${this.timeBombs.length}`);
+    }
+  }
+
+  // タイムボム一覧を取得（UI表示用）
+  getTimeBombs(): Array<{ position: Position; playerId: PlayerId; turn: number; explosionTurn: number; remainingTurns: number }> {
+    return this.timeBombs.map(bombData => {
+      // 設置から2ターン後の自分ターン終了時に爆発
+      // 設置ターン2の場合、ターン4の終了時に爆発（設置ターン + 2 = 爆発ターン）
+      const explosionTurn = bombData.explosionTurn;
+      const remainingTurns = Math.max(0, explosionTurn - this.currentTurn);
+      return {
+        position: bombData.position,
+        playerId: bombData.playerId,
+        turn: bombData.turn,
+        explosionTurn: explosionTurn,
+        remainingTurns: remainingTurns
+      };
+    });
   }
 
   private applyPenalty(playerId: PlayerId, count: number): void {
