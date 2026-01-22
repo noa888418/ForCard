@@ -67,22 +67,32 @@ export class S01_ReversalField extends SpecialCard {
 // S02: フォーカスシフト
 export class S02_FocusShift extends SpecialCard {
   constructor() {
-    super('S02', 'フォーカスシフト', '直前の自分のターンで使った色カードと同じパターンを、このターンにS02を置いたマスを中心としてもう一度適用');
+    super('S02', 'フォーカスシフト', '自分ターンで最後に使った色カードと同じパターンをもう一度適用。最後に使った色カードが配置されたマスと同じマスに、同じ効果が適用される。色カードを一枚も使っていない場合はC01：単点塗りと同じ効果');
   }
 
-  canPlay(board: Board, position: Position, playerId: PlayerId, options?: { lastColorCard: ColorCard | null }): boolean {
-    // 直前のターンに色カードを使っている必要がある
-    return options?.lastColorCard !== null && options?.lastColorCard !== undefined;
+  canPlay(board: Board, position: Position, playerId: PlayerId, options?: { lastColorCard: ColorCard | null; lastColorCardPosition?: Position | null }): boolean {
+    // 常に使用可能（色カードを使っていない場合はC01効果として使用可能）
+    return true;
   }
 
-  applyEffect(board: Board, position: Position, playerId: PlayerId, options?: { lastColorCard: ColorCard | null }): void {
+  applyEffect(board: Board, position: Position, playerId: PlayerId, options?: { lastColorCard: ColorCard | null; lastColorCardPosition?: Position | null }): void {
     const lastCard = options?.lastColorCard;
-    if (!lastCard) {
-      return; // 不発
+    const lastCardPosition = options?.lastColorCardPosition;
+    
+    if (!lastCard || !lastCardPosition) {
+      // 色カードを一枚も使っていない場合：C01：単点塗りと同じ効果
+      // S02を配置したマスに+1
+      const cell = board.getCell(position.x, position.y);
+      if (cell) {
+        const delta = playerId === 'A' ? 1 : -1;
+        cell.addStability(delta);
+      }
+      return;
     }
 
-    // 直前の色カードと同じパターンを、新しい位置で適用
-    const targetPositions = lastCard.getTargetPositions(board, position, playerId);
+    // 最後に使った色カードが配置されたマスと同じマスに、同じ効果が適用される
+    // S02の配置位置は関係なく、最後に使った色カードの位置を使用
+    const targetPositions = lastCard.getTargetPositions(board, lastCardPosition, playerId);
     const power = lastCard.getPower();
     const delta = playerId === 'A' ? power : -power;
 
@@ -94,12 +104,19 @@ export class S02_FocusShift extends SpecialCard {
     }
   }
 
-  getTargetPositions(board: Board, position: Position, playerId: PlayerId, options?: { lastColorCard: ColorCard | null }): Position[] {
+  getTargetPositions(board: Board, position: Position, playerId: PlayerId, options?: { lastColorCard: ColorCard | null; lastColorCardPosition?: Position | null }): Position[] {
     const lastCard = options?.lastColorCard;
-    if (!lastCard) {
-      return [];
+    const lastCardPosition = options?.lastColorCardPosition;
+    
+    if (!lastCard || !lastCardPosition) {
+      // 色カードを一枚も使っていない場合：C01：単点塗りと同じパターン
+      // S02を配置したマスのみ
+      return [position];
     }
-    return lastCard.getTargetPositions(board, position, playerId);
+    
+    // 最後に使った色カードが配置されたマスと同じマスに、同じ効果が適用される
+    // S02の配置位置は関係なく、最後に使った色カードの位置を使用
+    return lastCard.getTargetPositions(board, lastCardPosition, playerId);
   }
 }
 

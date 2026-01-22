@@ -29,6 +29,7 @@ export class GameManager {
   private doubleActionFirstSelection: Map<PlayerId, CardSelection | null> = new Map(); // ダブルアクション中の1枚目のカード選択
   private skipNextTurn: Map<PlayerId, boolean> = new Map();
   private lastColorCard: Map<PlayerId, ColorCard | null> = new Map();
+  private lastColorCardPosition: Map<PlayerId, Position | null> = new Map(); // S02用：最後に使った色カードの位置
 
   constructor(playerA: Player, playerB: Player, boardSize: number = 5, totalTurns: number = 15) {
     this.board = new Board(boardSize);
@@ -48,6 +49,8 @@ export class GameManager {
     this.skipNextTurn.set('B', false);
     this.lastColorCard.set('A', null);
     this.lastColorCard.set('B', null);
+    this.lastColorCardPosition.set('A', null);
+    this.lastColorCardPosition.set('B', null);
   }
 
   getBoard(): Board {
@@ -102,29 +105,18 @@ export class GameManager {
   // カード選択
   selectCard(playerId: PlayerId, selection: CardSelection): boolean {
     if (this.state !== 'selecting') {
-      console.log(`[GameManager.selectCard] stateがselectingではない: state=${this.state}, player=${playerId}, card=${selection.cardId}`);
       return false;
     }
 
     // スキップターンの場合は選択不可
     if (this.skipNextTurn.get(playerId)) {
-      console.log(`[GameManager.selectCard] skipNextTurnがtrueのため選択不可: player=${playerId}, card=${selection.cardId}`);
       return false;
     }
 
     const player = this.getPlayer(playerId);
-    const hand = player.getHand();
-    const card = hand.find(c => c.getId() === selection.cardId);
+    const card = player.getHand().find(c => c.getId() === selection.cardId);
     
-    // カードが手札にない、または既に使用済みの場合は選択不可
     if (!card) {
-      console.log(`[GameManager.selectCard] カード${selection.cardId}が手札にない: player=${playerId}, hand=${hand.map(c => c.getId()).join(',')}`);
-      return false;
-    }
-    
-    // 念のため、使用済みカードでないことを確認
-    if (player.getUsedCards().has(selection.cardId)) {
-      console.log(`[GameManager.selectCard] カード${selection.cardId}は既に使用済み: player=${playerId}`);
       return false;
     }
 
@@ -133,7 +125,6 @@ export class GameManager {
       const cardId = card.getId();
       // 色カードはCxx（Fxxは強化カードなので不可）
       if (!cardId.startsWith('C')) {
-        console.log(`[GameManager.selectCard] ダブルアクション中は色カードのみ選択可能: player=${playerId}, card=${cardId}`);
         return false; // 特殊カードと強化カードは選択不可
       }
     }
@@ -144,16 +135,13 @@ export class GameManager {
       // 手札がそのカード1枚だけの場合は不発でプレイ可
       if (player.getHand().length === 1) {
         // 不発として記録（効果は適用しない）
-        console.log(`[GameManager.selectCard] 手札が1枚だけなので不発でプレイ可: player=${playerId}, card=${selection.cardId}`);
         this.selections.set(playerId, selection);
         return true;
       }
-      console.log(`[GameManager.selectCard] canPlay=false: player=${playerId}, card=${selection.cardId}, pos=(${selection.targetPosition.x},${selection.targetPosition.y})`);
       return false;
     }
 
     this.selections.set(playerId, selection);
-    console.log(`[GameManager.selectCard] 成功: player=${playerId}, card=${selection.cardId}, pos=(${selection.targetPosition.x},${selection.targetPosition.y})`);
     return true;
   }
 
@@ -179,19 +167,10 @@ export class GameManager {
     return true;
   }
 
-  // プレイヤーの選択をリセット（スキップターン用）
-  clearSelection(playerId: PlayerId): void {
-    this.selections.set(playerId, null);
-  }
-
   // 両プレイヤーが選択済みかチェック
   areBothPlayersReady(): boolean {
     const selectionA = this.selections.get('A');
     const selectionB = this.selections.get('B');
-    
-    // スキップしているプレイヤーは選択がnullでもOK
-    const skipA = this.skipNextTurn.get('A');
-    const skipB = this.skipNextTurn.get('B');
     
     // ダブルアクション中は、1枚目のカードを決定した後も選択を保持するため、
     // ダブルアクション中でない場合のみ、両方の選択がnullでないことを確認
@@ -199,11 +178,8 @@ export class GameManager {
     const doubleActionB = this.doubleActionActive.get('B');
     
     // ダブルアクション中でない場合、通常のチェック
-    // ただし、スキップしているプレイヤーは選択がnullでもOK
     if (!doubleActionA && !doubleActionB) {
-      const aReady = skipA || selectionA !== null;
-      const bReady = skipB || selectionB !== null;
-      return aReady && bReady;
+      return selectionA !== null && selectionB !== null;
     }
     
     // ダブルアクション中の場合、残り回数が0になったら解決可能
@@ -212,15 +188,11 @@ export class GameManager {
       if (remaining > 1 && selectionA !== null) {
         // まだ2枚目のカードを選択できる（1枚目を決定した直後）
         // この時点で1枚目のカードを処理するため、trueを返してresolveTurnを呼ばせる
-        const aReady = skipA || selectionA !== null;
-        const bReady = skipB || selectionB !== null;
-        return aReady && bReady;
+        return selectionA !== null && selectionB !== null;
       }
       if (remaining === 1 && selectionA !== null) {
         // 2枚目のカードを決定した後
-        const aReady = skipA || selectionA !== null;
-        const bReady = skipB || selectionB !== null;
-        return aReady && bReady;
+        return selectionA !== null && selectionB !== null;
       }
     }
     
@@ -229,23 +201,16 @@ export class GameManager {
       if (remaining > 1 && selectionB !== null) {
         // まだ2枚目のカードを選択できる（1枚目を決定した直後）
         // この時点で1枚目のカードを処理するため、trueを返してresolveTurnを呼ばせる
-        const aReady = skipA || selectionA !== null;
-        const bReady = skipB || selectionB !== null;
-        return aReady && bReady;
+        return selectionA !== null && selectionB !== null;
       }
       if (remaining === 1 && selectionB !== null) {
         // 2枚目のカードを決定した後
-        const aReady = skipA || selectionA !== null;
-        const bReady = skipB || selectionB !== null;
-        return aReady && bReady;
+        return selectionA !== null && selectionB !== null;
       }
     }
     
     // ダブルアクションが終了したか、通常の選択が完了した場合
-    // ただし、スキップしているプレイヤーは選択がnullでもOK
-    const aReady = skipA || selectionA !== null;
-    const bReady = skipB || selectionB !== null;
-    return aReady && bReady;
+    return selectionA !== null && selectionB !== null;
   }
 
   // ターン解決
@@ -256,12 +221,8 @@ export class GameManager {
 
     this.state = 'resolving';
 
-    const selectionA = this.selections.get('A');
-    const selectionB = this.selections.get('B');
-    
-    // スキップしているプレイヤーは選択がnullでもOK
-    const skipA = this.skipNextTurn.get('A');
-    const skipB = this.skipNextTurn.get('B');
+    const selectionA = this.selections.get('A')!;
+    const selectionB = this.selections.get('B')!;
 
     const playerA = this.getPlayer('A');
     const playerB = this.getPlayer('B');
@@ -275,9 +236,9 @@ export class GameManager {
     let doubleActionCompletedA = false;
     let doubleActionCompletedB = false;
     
-    if (doubleActionA && !skipA) {
+    if (doubleActionA) {
       const remaining = this.doubleActionRemaining.get('A') || 0;
-      if (remaining > 1 && selectionA !== null && selectionA !== undefined) {
+      if (remaining > 1 && selectionA !== null) {
         // まだ2枚目のカードを選択できる状態（remaining > 1の時のみ）
         // 1枚目のカードを実際に使用する
         const cardA = playerA.useCard(selectionA.cardId);
@@ -301,7 +262,7 @@ export class GameManager {
         this.selections.set('A', null);
         this.state = 'selecting';
         return;
-      } else if (remaining === 1 && selectionA !== null && selectionA !== undefined) {
+      } else if (remaining === 1 && selectionA !== null) {
         // 2枚目のカードを決定した時
         const cardA = playerA.useCard(selectionA.cardId);
         if (!cardA) {
@@ -325,9 +286,9 @@ export class GameManager {
       }
     }
     
-    if (doubleActionB && !skipB) {
+    if (doubleActionB) {
       const remaining = this.doubleActionRemaining.get('B') || 0;
-      if (remaining > 1 && selectionB !== null && selectionB !== undefined) {
+      if (remaining > 1 && selectionB !== null) {
         // まだ2枚目のカードを選択できる状態（remaining > 1の時のみ）
         // 1枚目のカードを実際に使用する
         const cardB = playerB.useCard(selectionB.cardId);
@@ -351,7 +312,7 @@ export class GameManager {
         this.selections.set('B', null);
         this.state = 'selecting';
         return;
-      } else if (remaining === 1 && selectionB !== null && selectionB !== undefined) {
+      } else if (remaining === 1 && selectionB !== null) {
         // 2枚目のカードを決定した時
         const cardB = playerB.useCard(selectionB.cardId);
         if (!cardB) {
@@ -393,88 +354,6 @@ export class GameManager {
       return;
     }
 
-    // スキップしているプレイヤーは選択がnullでもOK
-    // スキップしていないプレイヤーのカードだけを処理する
-    if (skipA && skipB) {
-      // 両方ともスキップの場合（通常は発生しないが、念のため）
-      this.endTurn();
-      return;
-    }
-    
-    if (skipA) {
-      // プレイヤーAがスキップの場合、プレイヤーBのカードだけを処理
-      if (selectionB === null || selectionB === undefined) {
-        this.state = 'selecting';
-        return;
-      }
-      const cardB = playerB.useCard(selectionB.cardId);
-      if (!cardB) {
-        this.state = 'selecting';
-        return;
-      }
-
-      // プレイヤーBのカード効果を適用
-      const colorCardB = cardB.getType() === 'color' ? (cardB as ColorCard) : null;
-      const fortCardB = cardB.getType() === 'fort' ? (cardB as FortCard) : null;
-      
-      if (colorCardB) {
-        this.applyColorCard(colorCardB, selectionB.targetPosition, 'B', selectionB);
-      }
-      if (fortCardB) {
-        this.applyFortCard(fortCardB, selectionB.targetPosition, 'B', selectionB);
-      }
-      if (cardB.getType() === 'special') {
-        // 相手のカードがないので、nullを渡す
-        this.applySpecialCard(cardB as SpecialCard, selectionB.targetPosition, 'B', null as any, null as any);
-      }
-
-      // ターン終了時点の盤面に対してタイムボムの爆発を処理
-      this.checkTimeBombs();
-
-      this.endTurn();
-      return;
-    }
-    
-    if (skipB) {
-      // プレイヤーBがスキップの場合、プレイヤーAのカードだけを処理
-      if (selectionA === null || selectionA === undefined) {
-        this.state = 'selecting';
-        return;
-      }
-      const cardA = playerA.useCard(selectionA.cardId);
-      if (!cardA) {
-        this.state = 'selecting';
-        return;
-      }
-
-      // プレイヤーAのカード効果を適用
-      const colorCardA = cardA.getType() === 'color' ? (cardA as ColorCard) : null;
-      const fortCardA = cardA.getType() === 'fort' ? (cardA as FortCard) : null;
-      
-      if (colorCardA) {
-        this.applyColorCard(colorCardA, selectionA.targetPosition, 'A', selectionA);
-      }
-      if (fortCardA) {
-        this.applyFortCard(fortCardA, selectionA.targetPosition, 'A', selectionA);
-      }
-      if (cardA.getType() === 'special') {
-        // 相手のカードがないので、nullを渡す
-        this.applySpecialCard(cardA as SpecialCard, selectionA.targetPosition, 'A', null as any, null as any);
-      }
-
-      // ターン終了時点の盤面に対してタイムボムの爆発を処理
-      this.checkTimeBombs();
-
-      this.endTurn();
-      return;
-    }
-
-    // 通常の処理（両方ともスキップしていない場合）
-    if (selectionA === null || selectionA === undefined || selectionB === null || selectionB === undefined) {
-      this.state = 'selecting';
-      return;
-    }
-
     const cardA = playerA.useCard(selectionA.cardId);
     const cardB = playerB.useCard(selectionB.cardId);
 
@@ -483,6 +362,9 @@ export class GameManager {
       this.state = 'selecting';
       return;
     }
+
+    // タイムボムの爆発チェック
+    this.checkTimeBombs();
 
     // 特殊カードの相互干渉チェック
     const specialJammerA = cardA.getType() === 'special' && cardA.getId() === 'S05';
@@ -511,39 +393,12 @@ export class GameManager {
     }
 
     // 特殊カードフェーズ
-    // S05（スペシャルジャマー）の相互干渉を先に判定
-    const isSpecialA = cardA.getType() === 'special';
-    const isSpecialB = cardB.getType() === 'special';
-    const jammerA = isSpecialA && cardA.getId() === 'S05';
-    const jammerB = isSpecialB && cardB.getId() === 'S05';
-
-    if (jammerA && jammerB) {
-      // 両方ともS05の場合：お互い「読み外れ」扱いで双方ペナルティ
-      this.applyPenalty('A', 3);
-      this.applyPenalty('B', 3);
-      // 特殊カード効果は何も発動しない
-    } else if (jammerA && isSpecialB) {
-      // AがS05、Bが特殊カード：Bの特殊効果を完全無効化
-      // AのS05だけ処理（Bの特殊は呼ばない）
+    if (cardA.getType() === 'special') {
       this.applySpecialCard(cardA as SpecialCard, selectionA.targetPosition, 'A', cardB, selectionB);
-      // Bの特殊カードは無効化されるため、applySpecialCardを呼ばない
-    } else if (jammerB && isSpecialA) {
-      // BがS05、Aが特殊カード：Aの特殊効果を完全無効化
-      // BのS05だけ処理（Aの特殊は呼ばない）
-      this.applySpecialCard(cardB as SpecialCard, selectionB.targetPosition, 'B', cardA, selectionA);
-      // Aの特殊カードは無効化されるため、applySpecialCardを呼ばない
-    } else {
-      // 通常の特殊カード処理
-      if (isSpecialA) {
-        this.applySpecialCard(cardA as SpecialCard, selectionA.targetPosition, 'A', cardB, selectionB);
-      }
-      if (isSpecialB) {
-        this.applySpecialCard(cardB as SpecialCard, selectionB.targetPosition, 'B', cardA, selectionA);
-      }
     }
-
-    // ターン終了時点の盤面に対してタイムボムの爆発を処理
-    this.checkTimeBombs();
+    if (cardB.getType() === 'special') {
+      this.applySpecialCard(cardB as SpecialCard, selectionB.targetPosition, 'B', cardA, selectionA);
+    }
 
     // ターン終了処理
     this.endTurn();
@@ -553,8 +408,9 @@ export class GameManager {
     const options = this.getCardOptions(card, playerId, selection);
     card.applyEffect(this.board, position, playerId, options);
     
-    // 直前の色カードを記録（S02用）
+    // 直前の色カードと位置を記録（S02用）
     this.lastColorCard.set(playerId, card);
+    this.lastColorCardPosition.set(playerId, position);
   }
 
   private applyFortCard(card: FortCard, position: Position, playerId: PlayerId, selection: CardSelection): void {
@@ -582,8 +438,9 @@ export class GameManager {
         changes.set(key, (changes.get(key) || 0) + deltaA);
       }
 
-      // 直前の色カードを記録（S02用）
+      // 直前の色カードと位置を記録（S02用）
       this.lastColorCard.set(playerIdA, cardA);
+      this.lastColorCardPosition.set(playerIdA, selectionA.targetPosition);
     }
 
     // プレイヤーBの色カード効果を計算
@@ -598,8 +455,9 @@ export class GameManager {
         changes.set(key, (changes.get(key) || 0) + deltaB);
       }
 
-      // 直前の色カードを記録（S02用）
+      // 直前の色カードと位置を記録（S02用）
       this.lastColorCard.set(playerIdB, cardB);
+      this.lastColorCardPosition.set(playerIdB, selectionB.targetPosition);
     }
 
     // 全ての変化を同時に適用（足し合わせてから判定）
@@ -704,22 +562,21 @@ export class GameManager {
       const player = this.getPlayer(playerId);
       const hand = player.getHand();
       
-      console.log(`[GameManager.applySpecialCard] S04使用: player=${playerId}, hand=${hand.map(c => c.getId()).join(',')}`);
+      // S04が手札の最後の1枚だった場合（不発、ペナルティなし）
+      if (hand.length === 1) {
+        // 何も起こらない
+        return;
+      }
       
-      // S04を除く残り手札に色カード（Color Cards）が1枚以下かどうかのチェック（強化カードFxxは含まない）
+      // S04を除く残り手札に色カード（Color Cards）が1枚以下の場合のチェック（強化カードFxxは含まない）
       const remainingColorCards = hand.filter(c => {
         const id = c.getId();
         // 色カードはCxx（Fxxは強化カードなので除外）
         return id !== 'S04' && id.startsWith('C');
       });
       
-      console.log(`[GameManager.applySpecialCard] S04使用: 残り色カード数=${remainingColorCards.length}, 残り色カード=${remainingColorCards.map(c => c.getId()).join(',')}`);
-      
       // S04を除く残り手札の色カードが1枚以下の場合、C01として処理（単点塗り）
-      // これには以下のケースが含まれる：
-      // - S04が手札の最後の1枚だった場合（remainingColorCards.length === 0）
-      // - 残りカードがS04と色カード1枚だけの状態（remainingColorCards.length === 1 && hand.length === 2）
-      // - その他の色カードが1枚以下の場合
+      // これには「S04が手札の最後の1枚」や「残りカードがS04と色カード1枚だけ」のケースも含まれる
       if (remainingColorCards.length <= 1) {
         console.log(`[GameManager.applySpecialCard] S04使用: 色カードが1枚以下（${remainingColorCards.length}枚）→ C01として処理`);
         // C01として処理（単点塗り）
@@ -802,6 +659,11 @@ export class GameManager {
     });
   }
 
+  // プレイヤーの選択をクリア
+  clearSelection(playerId: PlayerId): void {
+    this.selections.set(playerId, null);
+  }
+
   private applyPenalty(playerId: PlayerId, count: number): void {
     const ownCells: Position[] = [];
     const size = this.board.getSize();
@@ -835,6 +697,7 @@ export class GameManager {
 
     if (card.getId() === 'S02') {
       options.lastColorCard = this.lastColorCard.get(playerId);
+      options.lastColorCardPosition = this.lastColorCardPosition.get(playerId);
     }
 
     if (card.getId() === 'S10' && selection) {

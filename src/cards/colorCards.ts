@@ -152,7 +152,7 @@ export class C06_Corner3 extends ColorCard {
 
 export class C07_Edge3 extends ColorCard {
   constructor() {
-    super('C07', '端専用3マス', '盤面の辺上のマスにのみ置ける。そのマス+内側方向2マスを+1', 1);
+    super('C07', '端専用3マス', '盤面の辺上のマスにのみ置ける、4隅に配置することはできない。そのマス+内側方向2マスを+1', 1);
   }
 
   canPlay(board: Board, position: Position): boolean {

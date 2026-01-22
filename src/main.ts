@@ -357,18 +357,29 @@ class GameUI {
     newCardSelector.innerHTML = '<option value="">カードを選択してください</option>';
     
     // カードをソートして追加
+    // 色カード（Cxx）、強化カード（Fxx）、特殊カード（Sxx）の順番でまとめる
+    // 各カテゴリ内では番号順にソート
     const sortedCards = [...allCards].sort((a, b) => {
       const idA = a.getId();
       const idB = b.getId();
       
-      // 色カードと特殊カードを分ける
-      const isColorA = idA.startsWith('C');
-      const isColorB = idB.startsWith('C');
+      // カードの種類を判定（優先順位: 色カード > 強化カード > 特殊カード）
+      const getCardCategory = (id: string): number => {
+        if (id.startsWith('C')) return 1; // 色カード
+        if (id.startsWith('F')) return 2; // 強化カード
+        if (id.startsWith('S')) return 3; // 特殊カード
+        return 4; // その他
+      };
       
-      if (isColorA && !isColorB) return -1;
-      if (!isColorA && isColorB) return 1;
+      const categoryA = getCardCategory(idA);
+      const categoryB = getCardCategory(idB);
       
-      // 同じ種類なら番号で比較
+      // カテゴリで比較
+      if (categoryA !== categoryB) {
+        return categoryA - categoryB;
+      }
+      
+      // 同じカテゴリなら番号で比較
       const numA = parseInt(idA.substring(1));
       const numB = parseInt(idB.substring(1));
       return numA - numB;
@@ -769,6 +780,178 @@ class GameUI {
     return positions;
   }
 
+  // 色カードのパターンを描画するSVGを作成
+  private createColorCardPattern(cardId: string): HTMLElement {
+    const container = document.createElement('div');
+    container.className = 'color-card-pattern';
+    
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    // カード内に収まるようにサイズを調整（5×5グリッド + パディング）
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svg.style.width = '100%';
+    svg.style.height = '60px'; // 固定高さでカード内に収まるように
+    svg.style.maxWidth = '100%';
+    
+    const cellSize = 14; // セルサイズをさらに小さく
+    const offset = 15; // オフセットを調整（中央寄せ）
+    const gridSize = 5; // グリッドサイズ
+    
+    // パターンに応じてマスを塗る
+    const pattern = this.getColorCardPattern(cardId);
+    
+    // グリッドの背景を描画
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', String(offset + x * cellSize));
+        rect.setAttribute('y', String(offset + y * cellSize));
+        rect.setAttribute('width', String(cellSize - 1));
+        rect.setAttribute('height', String(cellSize - 1));
+        rect.setAttribute('fill', '#f5f5f5');
+        rect.setAttribute('stroke', '#ddd');
+        rect.setAttribute('stroke-width', '0.5');
+        svg.appendChild(rect);
+      }
+    }
+    
+    // パターンに応じてマスを塗る
+    for (const pos of pattern) {
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', String(offset + pos.x * cellSize));
+      rect.setAttribute('y', String(offset + pos.y * cellSize));
+      rect.setAttribute('width', String(cellSize - 1));
+      rect.setAttribute('height', String(cellSize - 1));
+      rect.setAttribute('fill', '#667eea');
+      rect.setAttribute('stroke', '#333');
+      rect.setAttribute('stroke-width', '1');
+      svg.appendChild(rect);
+    }
+    
+    container.appendChild(svg);
+    return container;
+  }
+
+  // 色カードIDからパターンを取得（中心を(2,2)とする5×5グリッド）
+  private getColorCardPattern(cardId: string): Array<{ x: number; y: number }> {
+    const centerX = 2;
+    const centerY = 2;
+    const pattern: Array<{ x: number; y: number }> = [];
+    
+    switch (cardId) {
+      case 'C01': // 単点塗り
+        pattern.push({ x: centerX, y: centerY });
+        break;
+        
+      case 'C03': // 直線2マス（左右）
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX - 1, y: centerY });
+        pattern.push({ x: centerX + 1, y: centerY });
+        break;
+        
+      case 'C04': // 斜め2マス
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX - 1, y: centerY - 1 });
+        break;
+        
+      case 'C06': // 角専用3マス（右下角）
+        pattern.push({ x: 4, y: 4 });
+        pattern.push({ x: 3, y: 4 });
+        pattern.push({ x: 4, y: 3 });
+        break;
+        
+      case 'C07': // 端専用3マス（下端）
+        pattern.push({ x: centerX, y: 4 });
+        pattern.push({ x: centerX, y: 3 });
+        pattern.push({ x: centerX, y: 2 });
+        break;
+        
+      case 'C09': // 敵色削り（単点）
+        pattern.push({ x: centerX, y: centerY });
+        break;
+        
+      case 'C10': // 上下2マス塗り
+        pattern.push({ x: centerX, y: centerY - 1 });
+        pattern.push({ x: centerX, y: centerY + 1 });
+        break;
+        
+      case 'C11': // 十字塗り
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX, y: centerY - 1 });
+        pattern.push({ x: centerX, y: centerY + 1 });
+        pattern.push({ x: centerX - 1, y: centerY });
+        pattern.push({ x: centerX + 1, y: centerY });
+        break;
+        
+      case 'C12': // 斜め十字塗り
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX - 1, y: centerY - 1 });
+        pattern.push({ x: centerX + 1, y: centerY - 1 });
+        pattern.push({ x: centerX - 1, y: centerY + 1 });
+        pattern.push({ x: centerX + 1, y: centerY + 1 });
+        break;
+        
+      case 'C13': // 横三連
+        pattern.push({ x: centerX - 1, y: centerY });
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX + 1, y: centerY });
+        break;
+        
+      case 'C14': // 縦三連
+        pattern.push({ x: centerX, y: centerY - 1 });
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX, y: centerY + 1 });
+        break;
+        
+      case 'C15': // 2×2ブロック塗り
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX + 1, y: centerY });
+        pattern.push({ x: centerX, y: centerY + 1 });
+        pattern.push({ x: centerX + 1, y: centerY + 1 });
+        break;
+        
+      case 'C16': // L字形成
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX + 1, y: centerY });
+        pattern.push({ x: centerX, y: centerY + 1 });
+        break;
+        
+      case 'C17': // T字形成（下向きT）
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX - 1, y: centerY });
+        pattern.push({ x: centerX + 1, y: centerY });
+        pattern.push({ x: centerX, y: centerY + 1 });
+        break;
+        
+      case 'C21': // 横一列塗り
+        for (let x = 0; x < 5; x++) {
+          pattern.push({ x, y: centerY });
+        }
+        break;
+        
+      case 'C22': // 縦一列塗り
+        for (let y = 0; y < 5; y++) {
+          pattern.push({ x: centerX, y });
+        }
+        break;
+        
+      case 'C24': // 3×3ブロック塗り
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            pattern.push({ x: centerX + dx, y: centerY + dy });
+          }
+        }
+        break;
+        
+      default:
+        // デフォルトは単点
+        pattern.push({ x: centerX, y: centerY });
+        break;
+    }
+    
+    return pattern;
+  }
+
   // カードの適用範囲表示を更新（ホバー時はupdateBoardを呼ばずにこれだけ呼ぶ）
   private updateCardTargets(): void {
     if (!this.gameManager) {
@@ -904,21 +1087,33 @@ class GameUI {
         const targetPosition = selectedPosition || this.hoveredPosition;
         
         if (targetPosition) {
-          // 適用範囲を計算
-          let targetPositions: Position[] = [];
-          try {
-            targetPositions = card.getTargetPositions(board, targetPosition, playerId);
-          } catch (e) {
-            // エラーは無視
-          }
-
-          // 適用範囲のマスにcard-targetクラスを追加
-          targetPositions.forEach((pos: Position) => {
-            const cellElement = boardElement.querySelector(`[data-x="${pos.x}"][data-y="${pos.y}"]`);
-            if (cellElement) {
-              cellElement.classList.add('card-target');
+          // canPlay()をチェックして、選択できないマスには適用範囲を表示しない
+          let canPlayAtPosition = true;
+          if (card.canPlay) {
+            try {
+              canPlayAtPosition = card.canPlay(board, targetPosition, playerId);
+            } catch (e) {
+              canPlayAtPosition = false;
             }
-          });
+          }
+          
+          if (canPlayAtPosition) {
+            // 適用範囲を計算
+            let targetPositions: Position[] = [];
+            try {
+              targetPositions = card.getTargetPositions(board, targetPosition, playerId);
+            } catch (e) {
+              // エラーは無視
+            }
+
+            // 適用範囲のマスにcard-targetクラスを追加
+            targetPositions.forEach((pos: Position) => {
+              const cellElement = boardElement.querySelector(`[data-x="${pos.x}"][data-y="${pos.y}"]`);
+              if (cellElement) {
+                cellElement.classList.add('card-target');
+              }
+            });
+          }
         }
       }
     }
@@ -1148,7 +1343,8 @@ class GameUI {
       const descDiv = document.createElement('div');
       descDiv.className = 'card-description';
       
-      // ターン数によって効果が変わるカードの説明を動的に変更
+      // 色カードの場合は図で表示、それ以外はテキストで表示
+      const isColorCard = card.getType() === 'color';
       let description = card.getDescription();
       let turnInfo: string | null = null;
       let isEffectChanged = false;
@@ -1189,16 +1385,38 @@ class GameUI {
           }
         } else if (cardId === 'S04') {
           // S04: ダブルアクション
-          // 条件が分からないので、とりあえず現状のまま
-          // 将来的にC01と同じ効果になる条件があれば、ここに追加
+          // S04を除く残り手札の色カードが1枚以下の場合、C01と同じ効果になる
+          const player = this.gameManager.getPlayer(playerId);
+          const hand = player.getHand();
+          const remainingColorCards = hand.filter(c => {
+            const id = c.getId();
+            // 色カードはCxx（Fxxは強化カードなので除外）
+            return id !== 'S04' && id.startsWith('C');
+          });
+          
+          if (remainingColorCards.length <= 1) {
+            // C01と同じ説明に変更
+            description = '任意のマス1つの安定度を+1';
+            isEffectChanged = true;
+          }
         }
       }
       
-      // 説明テキストを設定
-      if (turnInfo) {
-        descDiv.innerHTML = `<div class="card-desc-main">${description}</div><div class="card-turn-info ${isEffectChanged ? 'effect-changed' : ''}">${turnInfo}</div>`;
+      // 色カードの場合は図で表示、それ以外はテキストで表示
+      if (isColorCard) {
+        // 色カードのパターンを描画
+        const patternDiv = this.createColorCardPattern(card.getId());
+        descDiv.appendChild(patternDiv);
+        // マウスホバー時に元の説明文を表示
+        descDiv.title = description;
+        cardElement.title = `${card.getName()} (${card.getId()})\n${description}`;
       } else {
-        descDiv.textContent = description;
+        // 強化カード・特殊カードはテキストで表示
+        if (turnInfo) {
+          descDiv.innerHTML = `<div class="card-desc-main">${description}</div><div class="card-turn-info ${isEffectChanged ? 'effect-changed' : ''}">${turnInfo}</div>`;
+        } else {
+          descDiv.textContent = description;
+        }
       }
       
       // 効果が切り替わった場合、カードに視覚的なマークを追加
@@ -1595,6 +1813,37 @@ class GameUI {
     if (playerId === 'B' && this.gameManager.isSkipNextTurn('B')) {
       // プレイヤーBがスキップしている場合は位置選択不可
       return;
+    }
+
+    // 選択されたカードを取得してcanPlay()をチェック
+    let selectedCardId: string | null = null;
+    if (playerId === 'A') {
+      selectedCardId = this.selectedCardId;
+    } else if (playerId === 'B') {
+      // ダブルアクション中で1枚目のカードが決定済みの場合、2枚目のカードをチェック
+      const isDoubleActionB = this.gameManager.isDoubleActionActive('B');
+      const remainingB = this.gameManager.getDoubleActionRemaining('B');
+      if (isDoubleActionB && remainingB > 1 && this.doubleActionFirstCardSelected) {
+        selectedCardId = this.playerBSelectedCardId;
+      } else {
+        selectedCardId = this.playerBSelectedCardId;
+      }
+    }
+
+    if (!selectedCardId) return;
+
+    // カードを取得してcanPlay()をチェック
+    const player = this.gameManager.getPlayer(playerId);
+    const hand = player.getHand();
+    const card = hand.find(c => c.getId() === selectedCardId);
+    
+    if (card && card.canPlay) {
+      const board = this.gameManager.getBoard();
+      const canPlayAtPosition = card.canPlay(board, { x, y }, playerId);
+      if (!canPlayAtPosition) {
+        // この位置には配置できない
+        return;
+      }
     }
 
     // 通常モード：プレイヤーAのみ
