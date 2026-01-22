@@ -81,12 +81,13 @@ export class CardFactory {
     // 特殊カード（Special Cards）
     const specialCards = allCards.filter(c => c.getId().startsWith('S'));
 
-    // 色カード:強化カード = 5:5 の比率で配分（特殊カードは残り）
-    // 特殊カードは全体の約30%程度とする
-    const numSpecialCards = Math.round(totalCards * 0.3);
-    const remainingCards = totalCards - numSpecialCards;
-    const numColorCards = Math.round(remainingCards * 0.5);
-    const numFortCards = remainingCards - numColorCards;
+    // カード配分: 色カード:5、強化カード:2.5、特殊カード:2.5 (全体を10として)
+    // 色カード: 50%
+    // 強化カード: 25%
+    // 特殊カード: 25%
+    const numColorCards = Math.round(totalCards * 0.5);
+    const numSpecialCards = Math.round(totalCards * 0.25);
+    const numFortCards = totalCards - numColorCards - numSpecialCards;
 
     const selectedCards: Card[] = [];
 

@@ -704,6 +704,16 @@ export class GameManager {
       // S10用のオプションは解決時に設定
     }
 
+    // C16などの回転可能カードの場合、回転を設定
+    if (selection && (selection.rotation !== undefined && selection.rotation !== null)) {
+      options.rotation = selection.rotation;
+    }
+
+    // C17の方向切り替え可能カードの場合、方向を設定
+    if (selection && selection.direction) {
+      options.direction = selection.direction;
+    }
+
     return options;
   }
 

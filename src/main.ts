@@ -36,9 +36,14 @@ class GameUI {
   
   // 開発者モード用の変数
   private playerBIsCPU: boolean = true; // プレイヤーBがCPUかどうか（開発者モード設定から取得）
+  private showColorPoints: boolean = true; // 色ポイントの表示/非表示
   private playerBSelectedCardId: string | null = null;
   private playerBSelectedCardIndex: number | null = null;
   private playerBSelectedPosition: { x: number; y: number } | null = null;
+  private selectedRotation: number = 0; // C16などの回転可能カードの回転角度（0=0度, 1=90度, 2=180度, 3=270度）
+  private playerBSelectedRotation: number = 0; // プレイヤーB用の回転角度
+  private selectedDirection: 'up' | 'down' = 'up'; // C17用の方向（上向き/下向き）
+  private playerBSelectedDirection: 'up' | 'down' = 'up'; // プレイヤーB用の方向
 
   constructor() {
     this.initializeGame();
@@ -69,10 +74,14 @@ class GameUI {
     this.selectedCardId = null;
     this.selectedCardIndex = null;
     this.selectedPosition = null;
+    this.selectedRotation = 0;
+    this.selectedDirection = 'up';
     this.hoveredPosition = null;
     this.playerBSelectedCardId = null;
     this.playerBSelectedCardIndex = null;
     this.playerBSelectedPosition = null;
+    this.playerBSelectedRotation = 0;
+    this.playerBSelectedDirection = 'up';
 
     // 開発者モードの設定からプレイヤーBのモードを取得
     this.playerBIsCPU = this.devSettings.playerBIsCPU;
@@ -283,6 +292,24 @@ class GameUI {
         this.cancelFirstCard();
       });
     }
+
+    // 色ポイント表示/非表示のトグル
+    const toggleColorPointsBtn = document.getElementById('toggle-color-points-btn');
+    if (toggleColorPointsBtn) {
+      toggleColorPointsBtn.addEventListener('click', () => {
+        this.toggleColorPointsDisplay();
+      });
+    }
+  }
+
+  private toggleColorPointsDisplay(): void {
+    this.showColorPoints = !this.showColorPoints;
+    const toggleBtn = document.getElementById('toggle-color-points-btn');
+    if (toggleBtn) {
+      toggleBtn.textContent = `色ポイント: ${this.showColorPoints ? '表示' : '非表示'}`;
+    }
+    // 盤面を更新して表示/非表示を反映
+    this.updateBoard();
   }
 
   private onCardSelectorChange(playerId: PlayerId, value: string): void {
@@ -663,9 +690,14 @@ class GameUI {
           cellElement.classList.add(`stability-${absStability}`);
         }
 
-        cellElement.textContent = cell.stability.toString();
+        // 色ポイントの表示/非表示
+        if (this.showColorPoints) {
+          cellElement.textContent = cell.stability.toString();
+        } else {
+          cellElement.textContent = '';
+        }
         const positionStr = this.formatPosition(x, y);
-        cellElement.title = `${positionStr} (${x}, ${y}) 安定度: ${cell.stability}`;
+        cellElement.title = `${positionStr} (${x}, ${y}) 色ポイント: ${cell.stability}`;
 
         // タイムボムの表示
         const timeBombs = this.gameManager.getTimeBombs();
@@ -682,7 +714,7 @@ class GameUI {
             bombInfo.textContent = `💣${bombData.remainingTurns}`;
             bombInfo.title = `タイムボム（プレイヤー${bombData.playerId}設置、残り${bombData.remainingTurns}ターンで爆発）`;
             cellElement.appendChild(bombInfo);
-            cellElement.title = `${positionStr} (${x}, ${y}) 安定度: ${cell.stability} | タイムボム（残り${bombData.remainingTurns}ターン）`;
+            cellElement.title = `${positionStr} (${x}, ${y}) 色ポイント: ${cell.stability} | タイムボム（残り${bombData.remainingTurns}ターン）`;
           } else if (isInBlastArea) {
             // 爆心地3×3内のマス
             cellElement.classList.add('time-bomb-blast-area');
@@ -1101,7 +1133,26 @@ class GameUI {
             // 適用範囲を計算
             let targetPositions: Position[] = [];
             try {
-              targetPositions = card.getTargetPositions(board, targetPosition, playerId);
+              // C16などの回転可能カード、C17の方向切り替え可能カードの場合、オプションを設定
+              const isRotatableCard = selectedCardId === 'C16';
+              const isDirectionCard = selectedCardId === 'C17';
+              const options: any = {};
+              
+              if (isRotatableCard) {
+                if (playerId === 'A') {
+                  options.rotation = this.selectedRotation;
+                } else if (playerId === 'B') {
+                  options.rotation = this.playerBSelectedRotation;
+                }
+              } else if (isDirectionCard) {
+                if (playerId === 'A') {
+                  options.direction = this.selectedDirection;
+                } else if (playerId === 'B') {
+                  options.direction = this.playerBSelectedDirection;
+                }
+              }
+              
+              targetPositions = card.getTargetPositions(board, targetPosition, playerId, options);
             } catch (e) {
               // エラーは無視
             }
@@ -1364,10 +1415,10 @@ class GameUI {
           if (currentTurn <= effectiveTurns) {
             const turnsUntilChange = effectiveTurns + 1 - currentTurn;
             turnInfo = `【全反転効果】残り${turnsUntilChange}ターンで効果切替`;
-            description = '使用時点の盤面を記録し、有効ターン内なら全マスの安定度符号を反転';
+            description = '使用時点の盤面を記録し、有効ターン内なら全マスの色ポイント符号を反転';
           } else {
             isEffectChanged = true;
-            description = '任意のマス1つの安定度を+1（C01：単点塗りと同じ効果）';
+            description = '任意のマス1つの色ポイントを+1（C01：単点塗りと同じ効果）';
             turnInfo = '【効果切替済み】C01と同じ効果';
           }
         } else if (cardId === 'S09') {
@@ -1396,7 +1447,7 @@ class GameUI {
           
           if (remainingColorCards.length <= 1) {
             // C01と同じ説明に変更
-            description = '任意のマス1つの安定度を+1';
+            description = '任意のマス1つの色ポイントを+1';
             isEffectChanged = true;
           }
         }
@@ -1719,6 +1770,7 @@ class GameUI {
           if (this.gameManager.cancelCardSelection('A')) {
             this.selectedCardId = null;
             this.selectedPosition = null;
+            this.selectedRotation = 0; // 回転をリセット
             this.playerADecided = false;
             this.doubleActionFirstCardSelected = false;
             this.doubleActionFirstSelection = null;
@@ -1735,6 +1787,7 @@ class GameUI {
           if (this.gameManager.cancelCardSelection('B')) {
             this.playerBSelectedCardId = null;
             this.playerBSelectedPosition = null;
+            this.playerBSelectedRotation = 0; // 回転をリセット
             this.playerBDecided = false;
             this.doubleActionFirstCardSelected = false;
             this.doubleActionFirstSelection = null;
@@ -1766,6 +1819,8 @@ class GameUI {
       this.selectedCardId = cardId;
       this.selectedCardIndex = null; // 通常モードではインデックス不要
       this.selectedPosition = null;
+      this.selectedRotation = 0; // 回転をリセット
+      this.selectedDirection = 'up'; // 方向をリセット
       this.hoveredPosition = null;
     } 
     // 開発者モード（プレイヤーBが手動の場合）
@@ -1774,6 +1829,7 @@ class GameUI {
         this.selectedCardId = cardId;
         this.selectedCardIndex = null;
         this.selectedPosition = null;
+        this.selectedRotation = 0; // 回転をリセット
         this.hoveredPosition = null;
         // プレイヤーAのターンに切り替え（カード選択時）
         this.currentPlayer = 'A';
@@ -1786,12 +1842,16 @@ class GameUI {
           this.playerBSelectedCardId = cardId;
           this.playerBSelectedCardIndex = null;
           this.playerBSelectedPosition = null;
+          this.playerBSelectedRotation = 0; // 回転をリセット
+          this.playerBSelectedDirection = 'up'; // 方向をリセット
           this.hoveredPosition = null;
           this.currentPlayer = 'B';
         } else if (!this.playerBDecided) {
           this.playerBSelectedCardId = cardId;
           this.playerBSelectedCardIndex = null;
           this.playerBSelectedPosition = null;
+          this.playerBSelectedRotation = 0; // 回転をリセット
+          this.playerBSelectedDirection = 'up'; // 方向をリセット
           this.hoveredPosition = null;
           // プレイヤーBのターンに切り替え（カード選択時）
           this.currentPlayer = 'B';
@@ -1846,10 +1906,35 @@ class GameUI {
       }
     }
 
+    // C16などの回転可能カード、C17の方向切り替え可能カードの処理
+    const isRotatableCard = selectedCardId === 'C16';
+    const isDirectionCard = selectedCardId === 'C17';
+    
     // 通常モード：プレイヤーAのみ
     if (this.devSettings.playerBIsCPU) {
       if (playerId !== 'A' || !this.selectedCardId) return;
-      this.selectedPosition = { x, y };
+      
+      // 同じ位置がクリックされた場合
+      if (this.selectedPosition && this.selectedPosition.x === x && this.selectedPosition.y === y) {
+        if (isRotatableCard) {
+          // C16: 回転を進める
+          this.selectedRotation = (this.selectedRotation + 1) % 4;
+          console.log(`[selectPosition] C16回転: ${this.selectedRotation * 90}度`);
+        } else if (isDirectionCard) {
+          // C17: 方向を切り替える
+          this.selectedDirection = this.selectedDirection === 'up' ? 'down' : 'up';
+          console.log(`[selectPosition] C17方向切り替え: ${this.selectedDirection === 'up' ? '上向き' : '下向き'}`);
+        }
+      } else {
+        // 位置が変わった場合はリセット
+        this.selectedPosition = { x, y };
+        if (isRotatableCard) {
+          this.selectedRotation = 0;
+        } else if (isDirectionCard) {
+          this.selectedDirection = 'up';
+        }
+      }
+      
       this.hoveredPosition = null;
       this.updateCardTargets();
       this.updateUI();
@@ -1858,7 +1943,28 @@ class GameUI {
     else {
       if (playerId === 'A') {
         if (!this.selectedCardId) return;
-        this.selectedPosition = { x, y };
+        
+        // 同じ位置がクリックされた場合
+        if (this.selectedPosition && this.selectedPosition.x === x && this.selectedPosition.y === y) {
+          if (isRotatableCard) {
+            // C16: 回転を進める
+            this.selectedRotation = (this.selectedRotation + 1) % 4;
+            console.log(`[selectPosition] C16回転: ${this.selectedRotation * 90}度`);
+          } else if (isDirectionCard) {
+            // C17: 方向を切り替える
+            this.selectedDirection = this.selectedDirection === 'up' ? 'down' : 'up';
+            console.log(`[selectPosition] C17方向切り替え: ${this.selectedDirection === 'up' ? '上向き' : '下向き'}`);
+          }
+        } else {
+          // 位置が変わった場合はリセット
+          this.selectedPosition = { x, y };
+          if (isRotatableCard) {
+            this.selectedRotation = 0;
+          } else if (isDirectionCard) {
+            this.selectedDirection = 'up';
+          }
+        }
+        
         this.hoveredPosition = null;
         this.updateCardTargets();
         this.updateUI();
@@ -1869,14 +1975,55 @@ class GameUI {
         if (isDoubleActionB && remainingB > 1 && this.doubleActionFirstCardSelected) {
           // 2枚目のカードの位置を選択
           if (!this.playerBSelectedCardId) return;
-          this.playerBSelectedPosition = { x, y };
+          
+          // 同じ位置がクリックされた場合
+          if (this.playerBSelectedPosition && this.playerBSelectedPosition.x === x && this.playerBSelectedPosition.y === y) {
+            if (isRotatableCard) {
+              // C16: 回転を進める
+              this.playerBSelectedRotation = (this.playerBSelectedRotation + 1) % 4;
+              console.log(`[selectPosition] C16回転（プレイヤーB）: ${this.playerBSelectedRotation * 90}度`);
+            } else if (isDirectionCard) {
+              // C17: 方向を切り替える
+              this.playerBSelectedDirection = this.playerBSelectedDirection === 'up' ? 'down' : 'up';
+              console.log(`[selectPosition] C17方向切り替え（プレイヤーB）: ${this.playerBSelectedDirection === 'up' ? '上向き' : '下向き'}`);
+            }
+          } else {
+            // 位置が変わった場合はリセット
+            this.playerBSelectedPosition = { x, y };
+            if (isRotatableCard) {
+              this.playerBSelectedRotation = 0;
+            } else if (isDirectionCard) {
+              this.playerBSelectedDirection = 'up';
+            }
+          }
+          
           this.hoveredPosition = null;
           this.updateCardTargets();
           this.updateUI();
         } else if (!this.playerBSelectedCardId) {
           return;
         } else {
-          this.playerBSelectedPosition = { x, y };
+          // 同じ位置がクリックされた場合
+          if (this.playerBSelectedPosition && this.playerBSelectedPosition.x === x && this.playerBSelectedPosition.y === y) {
+            if (isRotatableCard) {
+              // C16: 回転を進める
+              this.playerBSelectedRotation = (this.playerBSelectedRotation + 1) % 4;
+              console.log(`[selectPosition] C16回転（プレイヤーB）: ${this.playerBSelectedRotation * 90}度`);
+            } else if (isDirectionCard) {
+              // C17: 方向を切り替える
+              this.playerBSelectedDirection = this.playerBSelectedDirection === 'up' ? 'down' : 'up';
+              console.log(`[selectPosition] C17方向切り替え（プレイヤーB）: ${this.playerBSelectedDirection === 'up' ? '上向き' : '下向き'}`);
+            }
+          } else {
+            // 位置が変わった場合はリセット
+            this.playerBSelectedPosition = { x, y };
+            if (isRotatableCard) {
+              this.playerBSelectedRotation = 0;
+            } else if (isDirectionCard) {
+              this.playerBSelectedDirection = 'up';
+            }
+          }
+          
           this.hoveredPosition = null;
           this.updateCardTargets();
           this.updateUI();
@@ -1919,6 +2066,15 @@ class GameUI {
       cardId: this.selectedCardId as any,
       targetPosition: this.selectedPosition
     };
+    
+    // C16などの回転可能カードの場合、回転を設定
+    if (selectedCard.getId() === 'C16') {
+      selection.rotation = this.selectedRotation;
+    }
+    // C17の方向切り替え可能カードの場合、方向を設定
+    if (selectedCard.getId() === 'C17') {
+      selection.direction = this.selectedDirection;
+    }
 
     if (!this.gameManager.selectCard('A', selection)) {
       // 選択失敗
@@ -1946,6 +2102,8 @@ class GameUI {
         // 2枚目のカードを選択できるように、選択状態をリセット
         this.selectedCardId = null;
         this.selectedPosition = null;
+        this.selectedRotation = 0; // 回転をリセット
+        this.selectedDirection = 'up'; // 方向をリセット
         this.playerADecided = false;
         return;
       }
@@ -1993,6 +2151,15 @@ class GameUI {
       cardId: this.playerBSelectedCardId as any,
       targetPosition: this.playerBSelectedPosition
     };
+    
+    // C16などの回転可能カードの場合、回転を設定
+    if (selectedCard.getId() === 'C16') {
+      selection.rotation = this.playerBSelectedRotation;
+    }
+    // C17の方向切り替え可能カードの場合、方向を設定
+    if (selectedCard.getId() === 'C17') {
+      selection.direction = this.playerBSelectedDirection;
+    }
 
     if (!this.gameManager.selectCard('B', selection)) {
       // 選択失敗
@@ -2018,6 +2185,8 @@ class GameUI {
         // 2枚目のカードを選択できるように、選択状態をリセット
         this.playerBSelectedCardId = null;
         this.playerBSelectedPosition = null;
+        this.playerBSelectedRotation = 0; // 回転をリセット
+        this.playerBSelectedDirection = 'up'; // 方向をリセット
         this.playerBDecided = false;
         return;
       }
@@ -2327,10 +2496,14 @@ class GameUI {
       this.selectedCardId = null;
       this.selectedCardIndex = null;
       this.selectedPosition = null;
+      this.selectedRotation = 0;
+      this.selectedDirection = 'up';
       this.hoveredPosition = null;
       this.playerBSelectedCardId = null;
       this.playerBSelectedCardIndex = null;
       this.playerBSelectedPosition = null;
+      this.playerBSelectedRotation = 0;
+      this.playerBSelectedDirection = 'up';
       this.playerADecided = false;
       this.playerBDecided = false;
       this.showingReveal = false;
@@ -2382,6 +2555,7 @@ class GameUI {
           this.playerBSelectedCardId = null;
           this.playerBSelectedCardIndex = null;
           this.playerBSelectedPosition = null;
+          this.playerBSelectedRotation = 0;
           this.playerBDecided = false;
           // GameManagerの選択状態もリセット
           if (this.gameManager) {
@@ -2470,10 +2644,14 @@ class GameUI {
     this.selectedCardId = null;
     this.selectedCardIndex = null;
     this.selectedPosition = null;
+    this.selectedRotation = 0;
+    this.selectedDirection = 'up';
     this.hoveredPosition = null;
     this.playerBSelectedCardId = null;
     this.playerBSelectedCardIndex = null;
     this.playerBSelectedPosition = null;
+    this.playerBSelectedRotation = 0;
+    this.playerBSelectedDirection = 'up';
     this.playerADecided = false;  // リセット
     this.playerBDecided = false;  // リセット
     this.showingReveal = false;

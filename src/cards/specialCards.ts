@@ -21,7 +21,7 @@ export class S01_ReversalField extends SpecialCard {
   private usedTurn: number = -1;
 
   constructor() {
-    super('S01', 'リバーサル・フィールド', '使用時点の盤面を記録し、有効ターン内なら全マスの安定度符号を反転');
+    super('S01', 'リバーサル・フィールド', '使用時点の盤面を記録し、有効ターン内なら全マスの色ポイント符号を反転');
   }
 
   applyEffect(board: Board, position: Position, playerId: PlayerId, options?: { currentTurn: number, totalTurns: number }): void {
@@ -123,7 +123,7 @@ export class S02_FocusShift extends SpecialCard {
 // S03: オーバーロード
 export class S03_Overload extends SpecialCard {
   constructor() {
-    super('S03', 'オーバーロード', '自色マスにのみ置ける。置いたマスを+5に設定し、上下左右4マスを-1');
+    super('S03', 'オーバーロード', '自色マスにのみ置ける。置いたマスの色ポイントを+5に設定し、上下左右4マスの色ポイントを-1');
   }
 
   canPlay(board: Board, position: Position, playerId: PlayerId): boolean {
@@ -215,7 +215,7 @@ export class S07_TimeBomb extends SpecialCard {
   private explosionTurn: number = -1;
 
   constructor() {
-    super('S07', 'タイムボム', '設置から2ターン後の自分ターン終了時に爆発。爆心地3×3内の自色マス+2、敵色マス+1');
+    super('S07', 'タイムボム', '設置から2ターン後の自分ターン終了時に爆発。爆心地3×3内の自色マスの色ポイントを+2、敵色マスの色ポイントを+1');
   }
 
   applyEffect(board: Board, position: Position, playerId: PlayerId, options?: { currentTurn: number }): void {
@@ -266,7 +266,7 @@ export class S07_TimeBomb extends SpecialCard {
 // S08: サクリファイス・スワップ
 export class S08_SacrificeSwap extends SpecialCard {
   constructor() {
-    super('S08', 'サクリファイス・スワップ', '中立or敵色マスにのみ置ける。自色マスから最大3マスを犠牲にして、その安定度を置いたマスに集約');
+    super('S08', 'サクリファイス・スワップ', '中立or敵色マスにのみ置ける。自色マスから最大3マスを犠牲にして、その色ポイントを置いたマスに集約');
   }
 
   canPlay(board: Board, position: Position, playerId: PlayerId): boolean {
@@ -336,7 +336,7 @@ export class S08_SacrificeSwap extends SpecialCard {
 // S09: ラストフォートレス
 export class S09_LastFortress extends SpecialCard {
   constructor() {
-    super('S09', 'ラストフォートレス', '自色連結領域を対象。残り4ターン以上ならランダム1〜3マス+1。残り3ターン以内なら領域を要塞化し、他をリセット');
+    super('S09', 'ラストフォートレス', '自色連結領域を対象。残り4ターン以上ならランダム1〜3マスの色ポイントを+1。残り3ターン以内なら領域を要塞化し、他をリセット');
   }
 
   applyEffect(board: Board, position: Position, playerId: PlayerId, options?: { remainingTurns: number }): void {
@@ -407,7 +407,7 @@ export class S09_LastFortress extends SpecialCard {
 // S10: ターゲットロック
 export class S10_TargetLock extends SpecialCard {
   constructor() {
-    super('S10', 'ターゲットロック', '相手が色カードを使うと読む。相手の対象にロック座標が含まれていれば、そのマスを自分色+2に。外れればペナルティ');
+    super('S10', 'ターゲットロック', '相手が色カードを使うと読む。相手の対象にロック座標が含まれていれば、そのマスの色ポイントを自分色+2に。外れればペナルティ');
   }
 
   applyEffect(board: Board, position: Position, playerId: PlayerId, options?: { opponentTargetPositions: Position[] }): void {

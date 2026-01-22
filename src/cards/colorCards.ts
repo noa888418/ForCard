@@ -6,7 +6,7 @@ import { Board } from '../Board.js';
 // 弱い色カード（C01〜C10）
 export class C01_SinglePoint extends ColorCard {
   constructor() {
-    super('C01', '単点塗り', '任意のマス1つの安定度を+1', 1);
+    super('C01', '単点塗り', '任意のマス1つの色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position): Position[] {
@@ -16,7 +16,7 @@ export class C01_SinglePoint extends ColorCard {
 
 export class F01_SinglePointBoost extends FortCard {
   constructor() {
-    super('F01', '単点強化', '自色マス1つの安定度を+2', 2);
+    super('F01', '単点強化', '自色マス1つの色ポイントを+2', 2);
   }
 
   canPlay(board: Board, position: Position, playerId: PlayerId): boolean {
@@ -35,7 +35,7 @@ export class F01_SinglePointBoost extends FortCard {
 
 export class C03_Straight2 extends ColorCard {
   constructor() {
-    super('C03', '直線2マス', 'ターゲットと上下or左右の隣接マス計2マスを+1', 1);
+    super('C03', '直線2マス', 'ターゲットと上下or左右の隣接マス計2マスの色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId, options?: { direction?: 'horizontal' | 'vertical' }): Position[] {
@@ -62,7 +62,7 @@ export class C03_Straight2 extends ColorCard {
 
 export class C04_Diagonal2 extends ColorCard {
   constructor() {
-    super('C04', '斜め2マス', 'ターゲットと斜め方向の隣接マス1つの計2マスを+1', 1);
+    super('C04', '斜め2マス', 'ターゲットと斜め方向の隣接マス1つの計2マスの色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId, options?: { diagonal?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' }): Position[] {
@@ -88,7 +88,7 @@ export class C04_Diagonal2 extends ColorCard {
 
 export class F02_SurroundOwnOnly extends FortCard {
   constructor() {
-    super('F02', '周囲自陣集中塗り', 'ターゲット+上下左右のうち自色マスだけ+1', 1);
+    super('F02', '周囲自陣集中塗り', 'ターゲット+上下左右のうち自色マスだけ色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
@@ -114,7 +114,7 @@ export class F02_SurroundOwnOnly extends FortCard {
 
 export class C06_Corner3 extends ColorCard {
   constructor() {
-    super('C06', '角専用3マス', '盤面の四隅にのみ置ける。角マス+内向き2マスを+1', 1);
+    super('C06', '角専用3マス', '盤面の四隅にのみ置ける。角マス+内向き2マスの色ポイントを+1', 1);
   }
 
   canPlay(board: Board, position: Position): boolean {
@@ -152,7 +152,7 @@ export class C06_Corner3 extends ColorCard {
 
 export class C07_Edge3 extends ColorCard {
   constructor() {
-    super('C07', '端専用3マス', '盤面の辺上のマスにのみ置ける、4隅に配置することはできない。そのマス+内側方向2マスを+1', 1);
+    super('C07', '端専用3マス', '盤面の辺上のマスにのみ置ける、4隅に配置することはできない。そのマス+内側方向2マスの色ポイントを+1', 1);
   }
 
   canPlay(board: Board, position: Position): boolean {
@@ -193,7 +193,7 @@ export class C07_Edge3 extends ColorCard {
 
 export class F03_CenterOwnBoost extends FortCard {
   constructor() {
-    super('F03', '中心+自陣強化', 'ターゲット+上下左右のうち自色マスのみ+1', 1);
+    super('F03', '中心+自陣強化', 'ターゲット+上下左右のうち自色マスのみ色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
@@ -219,7 +219,7 @@ export class F03_CenterOwnBoost extends FortCard {
 
 export class C09_EnemyReduce extends ColorCard {
   constructor() {
-    super('C09', '敵色削り', '敵色マス1つを選び、その安定度を+2（＝0側に2近づく）。自色や中立マスを選んだ場合は安定度+1', 1);
+    super('C09', '敵色削り', '敵色マス1つを選び、その色ポイントを+2（＝0側に2近づく）。自色や中立マスを選んだ場合は色ポイント+1', 1);
   }
 
   canPlay(board: Board, position: Position, playerId: PlayerId): boolean {
@@ -270,7 +270,7 @@ export class C09_EnemyReduce extends ColorCard {
 
 export class C10_UpDown2 extends ColorCard {
   constructor() {
-    super('C10', '上下2マス塗り', 'ターゲットの上と下の2マスを+1。ターゲット自身は変化なし', 1);
+    super('C10', '上下2マス塗り', 'ターゲットの上と下の2マスの色ポイントを+1。ターゲット自身は変化なし', 1);
   }
 
   getTargetPositions(board: Board, position: Position): Position[] {
@@ -286,7 +286,7 @@ export class C10_UpDown2 extends ColorCard {
 // そこそこの色カード（C11〜C20）
 export class C11_Cross extends ColorCard {
   constructor() {
-    super('C11', '十字塗り', 'ターゲット+上下左右（最大5マス）を+1', 1);
+    super('C11', '十字塗り', 'ターゲット+上下左右（最大5マス）の色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position): Position[] {
@@ -310,7 +310,7 @@ export class C11_Cross extends ColorCard {
 
 export class C12_DiagonalCross extends ColorCard {
   constructor() {
-    super('C12', '斜め十字塗り', 'ターゲット+斜め4マス（最大5マス）を+1', 1);
+    super('C12', '斜め十字塗り', 'ターゲット+斜め4マス（最大5マス）の色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position): Position[] {
@@ -334,7 +334,7 @@ export class C12_DiagonalCross extends ColorCard {
 
 export class C13_Horizontal3 extends ColorCard {
   constructor() {
-    super('C13', '横三連', 'ターゲットの左・中心・右（最大3マス）を+1', 1);
+    super('C13', '横三連', 'ターゲットの左・中心・右（最大3マス）の色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position): Position[] {
@@ -351,7 +351,7 @@ export class C13_Horizontal3 extends ColorCard {
 
 export class C14_Vertical3 extends ColorCard {
   constructor() {
-    super('C14', '縦三連', 'ターゲットの上・中心・下（最大3マス）を+1', 1);
+    super('C14', '縦三連', 'ターゲットの上・中心・下（最大3マス）の色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position): Position[] {
@@ -368,7 +368,7 @@ export class C14_Vertical3 extends ColorCard {
 
 export class C15_Block2x2 extends ColorCard {
   constructor() {
-    super('C15', '2×2ブロック塗り', 'ターゲットを左上とした2×2ブロック4マスを+1', 1);
+    super('C15', '2×2ブロック塗り', 'ターゲットを左上とした2×2ブロック4マスの色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position): Position[] {
@@ -387,7 +387,7 @@ export class C15_Block2x2 extends ColorCard {
 
 export class C16_LShape extends ColorCard {
   constructor() {
-    super('C16', 'L字形成', 'ターゲット+右+下（計3マス）を+1。回転可', 1);
+    super('C16', 'L字形成', 'ターゲット+右+下（計3マス）の色ポイントを+1。回転可', 1);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId, options?: { rotation?: number }): Position[] {
@@ -416,7 +416,7 @@ export class C16_LShape extends ColorCard {
 
 export class C17_TShape extends ColorCard {
   constructor() {
-    super('C17', 'T字形成', 'ターゲット+左右+上or下（計3〜4マス）を+1', 1);
+    super('C17', 'T字形成', 'ターゲット+左右+上or下（計3〜4マス）の色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId, options?: { direction?: 'up' | 'down' }): Position[] {
@@ -444,7 +444,7 @@ export class C17_TShape extends ColorCard {
 
 export class F04_LShapeBoost extends FortCard {
   constructor() {
-    super('F04', 'L字強化（自陣のみ）', '任意の2×2ブロック内の自色マスだけ安定度+2', 2);
+    super('F04', 'L字強化（自陣のみ）', '任意の2×2ブロック内の自色マスだけ色ポイント+2', 2);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
@@ -465,7 +465,7 @@ export class F04_LShapeBoost extends FortCard {
 
 export class F05_CrossBoost extends FortCard {
   constructor() {
-    super('F05', '十字強化（自陣のみ）', 'ターゲット+上下左右のうち自色マスだけ+1', 1);
+    super('F05', '十字強化（自陣のみ）', 'ターゲット+上下左右のうち自色マスだけ色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
@@ -491,7 +491,7 @@ export class F05_CrossBoost extends FortCard {
 
 export class F06_SurroundOwnBoost extends FortCard {
   constructor() {
-    super('F06', '周囲自陣強化（中心自色限定）', 'ターゲットは自色マスのみ。ターゲット+上下左右のうち自色マスだけ+1', 1);
+    super('F06', '周囲自陣強化（中心自色限定）', 'ターゲットは自色マスのみ。ターゲット+上下左右のうち自色マスだけ色ポイントを+1', 1);
   }
 
   canPlay(board: Board, position: Position, playerId: PlayerId): boolean {
@@ -523,7 +523,7 @@ export class F06_SurroundOwnBoost extends FortCard {
 // 強い色カード（C21〜C30）
 export class C21_HorizontalLine extends ColorCard {
   constructor() {
-    super('C21', '横一列塗り', '任意の行（横一列）の全マスを+1', 1);
+    super('C21', '横一列塗り', '任意の行（横一列）の全マスの色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position): Position[] {
@@ -538,7 +538,7 @@ export class C21_HorizontalLine extends ColorCard {
 
 export class C22_VerticalLine extends ColorCard {
   constructor() {
-    super('C22', '縦一列塗り', '任意の列（縦一列）の全マスを+1', 1);
+    super('C22', '縦一列塗り', '任意の列（縦一列）の全マスの色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position): Position[] {
@@ -553,7 +553,7 @@ export class C22_VerticalLine extends ColorCard {
 
 export class F07_Block2x2Boost extends FortCard {
   constructor() {
-    super('F07', '2×2集中強化', '任意の2×2ブロック内の自色マスのみの安定度を+2', 2);
+    super('F07', '2×2集中強化', '任意の2×2ブロック内の自色マスのみの色ポイントを+2', 2);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
@@ -573,7 +573,7 @@ export class F07_Block2x2Boost extends FortCard {
 
 export class C24_Block3x3 extends ColorCard {
   constructor() {
-    super('C24', '3×3ブロック塗り', '任意の3×3ブロック内の全マスを+1', 1);
+    super('C24', '3×3ブロック塗り', '任意の3×3ブロック内の全マスの色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position): Position[] {
@@ -592,7 +592,7 @@ export class C24_Block3x3 extends ColorCard {
 
 export class F08_AllOwnBoost extends FortCard {
   constructor() {
-    super('F08', '全自陣ブースト', '盤面上の自色マスすべての安定度を+1', 1);
+    super('F08', '全自陣ブースト', '盤面上の自色マスすべての色ポイントを+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
@@ -612,7 +612,7 @@ export class F08_AllOwnBoost extends FortCard {
 
 export class F09_AllOwnSuperBoost extends FortCard {
   constructor() {
-    super('F09', '全自陣超強化＋反動', '自色マスすべて+2。敵色マスすべて+1（0側に近づく）', 2);
+    super('F09', '全自陣超強化＋反動', '自色マスすべての色ポイントを+2。敵色マスすべての色ポイントを+1（0側に近づく）', 2);
   }
 
   applyEffect(board: Board, position: Position, playerId: PlayerId): void {
@@ -656,7 +656,7 @@ export class F09_AllOwnSuperBoost extends FortCard {
 
 export class F10_RowFortress extends FortCard {
   constructor() {
-    super('F10', '行要塞化', '任意の行を1つ選び、その行の自色マスだけ安定度+2', 2);
+    super('F10', '行要塞化', '任意の行を1つ選び、その行の自色マスだけ色ポイント+2', 2);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
@@ -674,7 +674,7 @@ export class F10_RowFortress extends FortCard {
 
 export class F11_ColumnFortress extends FortCard {
   constructor() {
-    super('F11', '列要塞化', '任意の列を1つ選び、その列の自色マスだけ安定度+2', 2);
+    super('F11', '列要塞化', '任意の列を1つ選び、その列の自色マスだけ色ポイント+2', 2);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
@@ -692,7 +692,7 @@ export class F11_ColumnFortress extends FortCard {
 
 export class F12_ConnectedRegionBoost extends FortCard {
   constructor() {
-    super('F12', '連結領域強化', '任意の自色連結領域を1つ選び、その領域内の全マス安定度+1', 1);
+    super('F12', '連結領域強化', '任意の自色連結領域を1つ選び、その領域内の全マス色ポイント+1', 1);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
@@ -709,7 +709,7 @@ export class F12_ConnectedRegionBoost extends FortCard {
 
 export class F13_ConnectedRegionWeaknessBoost extends FortCard {
   constructor() {
-    super('F13', '連結領域の弱点補強', '任意の自色連結領域を1つ選び、安定度≦2の自色マスだけ+2', 2);
+    super('F13', '連結領域の弱点補強', '任意の自色連結領域を1つ選び、色ポイント≦2の自色マスだけ色ポイントを+2', 2);
   }
 
   getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
@@ -717,7 +717,7 @@ export class F13_ConnectedRegionWeaknessBoost extends FortCard {
     // positionが含まれる連結領域を探す
     for (const region of regions) {
       if (region.positions.some(p => p.x === position.x && p.y === position.y)) {
-        // 安定度≦2のマスだけを返す
+        // 色ポイント≦2のマスだけを返す
         return region.positions.filter(pos => {
           const cell = board.getCell(pos.x, pos.y);
           if (!cell) return false;
