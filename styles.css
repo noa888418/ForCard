@@ -381,6 +381,70 @@ header h1 {
     opacity: 1.0;
 }
 
+/* 安定度変化のアニメーション */
+@keyframes color-appear {
+    0% {
+        opacity: 0.3;
+        transform: scale(0.95);
+        box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scale(1.05);
+        box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+        box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+    }
+}
+
+@keyframes color-disappear {
+    0% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.4;
+        transform: scale(0.9);
+    }
+    100% {
+        opacity: 0.3;
+        transform: scale(1);
+    }
+}
+
+@keyframes color-intensify {
+    0% {
+        opacity: 0.6;
+        transform: scale(1);
+        box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+    }
+    50% {
+        opacity: 0.9;
+        transform: scale(1.08);
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+        box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+    }
+}
+
+.cell.animate-color-appear {
+    animation: color-appear 0.6s ease-out;
+}
+
+.cell.animate-color-disappear {
+    animation: color-disappear 0.5s ease-out;
+}
+
+.cell.animate-color-intensify {
+    animation: color-intensify 0.6s ease-out;
+}
+
 .cell.selected-target {
     border: 3px solid #ffeb3b;
     box-shadow: 0 0 10px rgba(255, 235, 59, 0.5);
@@ -750,9 +814,11 @@ button:disabled {
 
 .modal-content {
     background: white;
-    padding: 30px;
+    padding: 40px;
     border-radius: 10px;
-    max-width: 500px;
+    max-width: 800px;
+    width: 90%;
+    min-height: 400px;
     text-align: center;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
@@ -765,6 +831,190 @@ button:disabled {
 #result-content {
     font-size: 1.2em;
     margin-bottom: 20px;
+    min-height: 150px;
+}
+
+.result-loading {
+    font-size: 1.5em;
+    color: #667eea;
+    animation: pulse 1.5s ease-in-out infinite;
+    padding: 40px 0;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.6;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.05);
+    }
+}
+
+.result-winner {
+    font-size: 2.5em;
+    font-weight: bold;
+    padding: 30px 0;
+    animation: winner-appear 0.8s ease-out;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes winner-appear {
+    0% {
+        opacity: 0;
+        transform: scale(0.5) translateY(-20px);
+    }
+    50% {
+        transform: scale(1.1) translateY(0);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.result-winner-a {
+    color: #667eea;
+    animation: winner-appear 0.8s ease-out, winner-glow-a 2s ease-in-out infinite;
+}
+
+.result-winner-b {
+    color: #f5576c;
+    animation: winner-appear 0.8s ease-out, winner-glow-b 2s ease-in-out infinite;
+}
+
+.result-draw {
+    color: #ff9800;
+    animation: winner-appear 0.8s ease-out;
+}
+
+@keyframes winner-glow-a {
+    0%, 100% {
+        text-shadow: 2px 2px 4px rgba(102, 126, 234, 0.5), 0 0 10px rgba(102, 126, 234, 0.3);
+    }
+    50% {
+        text-shadow: 2px 2px 8px rgba(102, 126, 234, 0.8), 0 0 20px rgba(102, 126, 234, 0.6);
+    }
+}
+
+@keyframes winner-glow-b {
+    0%, 100% {
+        text-shadow: 2px 2px 4px rgba(245, 87, 108, 0.5), 0 0 10px rgba(245, 87, 108, 0.3);
+    }
+    50% {
+        text-shadow: 2px 2px 8px rgba(245, 87, 108, 0.8), 0 0 20px rgba(245, 87, 108, 0.6);
+    }
+}
+
+.result-scores,
+.result-scores-shuffling {
+    font-size: 1.3em;
+    margin-top: 30px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 40px;
+    flex-wrap: wrap;
+}
+
+.result-score-item {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding: 20px 30px;
+    min-width: 200px;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    border-radius: 8px;
+    animation: score-item-appear 0.5s ease-out;
+}
+
+.result-score-item:first-child {
+    animation: score-item-appear-left 0.5s ease-out;
+}
+
+.result-score-item:last-child {
+    animation: score-item-appear-right 0.5s ease-out;
+}
+
+@keyframes score-item-appear {
+    0% {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes score-item-appear-left {
+    0% {
+        opacity: 0;
+        transform: translateX(-30px) translateY(-10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0) translateY(0);
+    }
+}
+
+@keyframes score-item-appear-right {
+    0% {
+        opacity: 0;
+        transform: translateX(30px) translateY(-10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateX(0) translateY(0);
+    }
+}
+
+.result-score-label {
+    font-weight: bold;
+    color: #333;
+}
+
+.result-score-value {
+    font-size: 2em;
+    font-weight: bold;
+    color: #667eea;
+    min-width: 100px;
+    text-align: center;
+    transition: transform 0.1s ease-out, color 0.3s ease-out;
+    font-family: 'Courier New', monospace;
+}
+
+.result-score-item:first-child .result-score-value {
+    color: #667eea;
+}
+
+.result-score-item:last-child .result-score-value {
+    color: #f5576c;
+}
+
+/* シャッフル中のスコア値のスタイル */
+#shuffling-score-a,
+#shuffling-score-b {
+    animation: score-shuffle 0.1s ease-in-out infinite;
+}
+
+@keyframes score-shuffle {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.05);
+        opacity: 0.8;
+    }
+}
+
+.result-score-unit {
+    color: #666;
+    font-size: 0.9em;
 }
 
 #close-result-btn {

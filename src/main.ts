@@ -44,6 +44,7 @@ class GameUI {
   private playerBSelectedRotation: number = 0; // プレイヤーB用の回転角度
   private selectedDirection: 'up' | 'down' = 'up'; // C17用の方向（上向き/下向き）
   private playerBSelectedDirection: 'up' | 'down' = 'up'; // プレイヤーB用の方向
+  private previousStabilities: Map<string, number> = new Map(); // 前の安定度状態（key: "x,y", value: stability）
 
   constructor() {
     this.initializeGame();
@@ -93,6 +94,21 @@ class GameUI {
 
     // 操作ログをクリア（ゲーム開始時のみ）
     this.clearActionLog();
+    
+    // 初期状態を previousStabilities に保存
+    if (this.gameManager) {
+      const board = this.gameManager.getBoard();
+      const size = board.getSize();
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const cell = board.getCell(x, y);
+          if (cell) {
+            const key = `${x},${y}`;
+            this.previousStabilities.set(key, cell.stability);
+          }
+        }
+      }
+    }
     
     this.updateUI();
   }
@@ -643,6 +659,18 @@ class GameUI {
     const board = this.gameManager.getBoard();
     const size = board.getSize();
 
+    // 現在の安定度状態を保存（DOM要素を削除する前に保存）
+    const currentStabilities = new Map<string, number>();
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        const cell = board.getCell(x, y);
+        if (cell) {
+          const key = `${x},${y}`;
+          currentStabilities.set(key, cell.stability);
+        }
+      }
+    }
+
     // 盤面のグリッド設定
     boardElement.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
     boardElement.innerHTML = '';
@@ -688,6 +716,45 @@ class GameUI {
         const absStability = Math.abs(cell.stability);
         if (absStability > 0) {
           cellElement.classList.add(`stability-${absStability}`);
+        }
+
+        // 安定度の変化を検出してアニメーションを適用
+        const key = `${x},${y}`;
+        const previousStability = this.previousStabilities.get(key) ?? 0;
+        const currentStability = cell.stability;
+
+        // 変化パターンを検出
+        const prevAbs = Math.abs(previousStability);
+        const currAbs = Math.abs(currentStability);
+        const prevOwner = previousStability > 0 ? 'A' : previousStability < 0 ? 'B' : null;
+        const currOwner = currentStability > 0 ? 'A' : currentStability < 0 ? 'B' : null;
+
+        // 0→1, 0→-1: 中立から色が付く
+        if (prevAbs === 0 && currAbs === 1) {
+          console.log(`[Animation] 0→1/-1 at (${x},${y}): ${previousStability} → ${currentStability}`);
+          cellElement.classList.add('animate-color-appear');
+          // アニメーション完了後にクラスを削除
+          cellElement.addEventListener('animationend', () => {
+            cellElement.classList.remove('animate-color-appear');
+          }, { once: true });
+        }
+        // 1→0, -1→0: 色が消える
+        else if (prevAbs === 1 && currAbs === 0) {
+          console.log(`[Animation] 1/-1→0 at (${x},${y}): ${previousStability} → ${currentStability}`);
+          cellElement.classList.add('animate-color-disappear');
+          // アニメーション完了後にクラスを削除
+          cellElement.addEventListener('animationend', () => {
+            cellElement.classList.remove('animate-color-disappear');
+          }, { once: true });
+        }
+        // 1→2, -1→-2: 色が濃くなる（同じプレイヤーの色の場合）
+        else if (prevAbs === 1 && currAbs === 2 && prevOwner === currOwner) {
+          console.log(`[Animation] 1/-1→2/-2 at (${x},${y}): ${previousStability} → ${currentStability}`);
+          cellElement.classList.add('animate-color-intensify');
+          // アニメーション完了後にクラスを削除
+          cellElement.addEventListener('animationend', () => {
+            cellElement.classList.remove('animate-color-intensify');
+          }, { once: true });
         }
 
         // 色ポイントの表示/非表示
@@ -788,6 +855,9 @@ class GameUI {
 
     // 初期の適用範囲表示を更新
     this.updateCardTargets();
+
+    // 現在の状態を前の状態として保存（次の更新で使用）
+    this.previousStabilities = currentStabilities;
   }
 
   // 座標を文字列に変換（例：B2）
@@ -1665,16 +1735,38 @@ class GameUI {
   private updateScores(): void {
     if (!this.gameManager) return;
 
+    const remainingTurns = this.gameManager.getRemainingTurns();
     const scoreA = document.getElementById('score-a');
     const scoreB = document.getElementById('score-b');
+    const scoreASection = scoreA?.parentElement; // .score要素
+    const scoreBSection = scoreB?.parentElement; // .score要素
 
-    if (scoreA) {
-      const score = this.gameManager.calculateScores().playerAScore;
-      scoreA.textContent = score.toString();
-    }
-    if (scoreB) {
-      const score = this.gameManager.calculateScores().playerBScore;
-      scoreB.textContent = score.toString();
+    // 残りターンが4以下になったらスコアを非表示
+    if (remainingTurns <= 4) {
+      if (scoreASection) {
+        scoreASection.style.display = 'none';
+      }
+      if (scoreBSection) {
+        scoreBSection.style.display = 'none';
+      }
+    } else {
+      // 残りターンが5以上なら表示
+      if (scoreASection) {
+        scoreASection.style.display = '';
+      }
+      if (scoreBSection) {
+        scoreBSection.style.display = '';
+      }
+      
+      // スコアを更新
+      if (scoreA) {
+        const score = this.gameManager.calculateScores().playerAScore;
+        scoreA.textContent = score.toString();
+      }
+      if (scoreB) {
+        const score = this.gameManager.calculateScores().playerBScore;
+        scoreB.textContent = score.toString();
+      }
     }
   }
 
@@ -2611,6 +2703,22 @@ class GameUI {
       }
     }
 
+    // resolveTurn()の前に現在の状態を保存（アニメーション検出のため）
+    if (this.gameManager) {
+      const board = this.gameManager.getBoard();
+      const size = board.getSize();
+      for (let y = 0; y < size; y++) {
+        for (let x = 0; x < size; x++) {
+          const cell = board.getCell(x, y);
+          if (cell) {
+            const key = `${x},${y}`;
+            this.previousStabilities.set(key, cell.stability);
+          }
+        }
+      }
+      console.log(`[Animation] 状態を保存しました（resolveTurn前）`);
+    }
+
     this.gameManager.resolveTurn();
     
     // ダブルアクションが解除された場合のログ（2枚の色カードを選択したことを記録）
@@ -2736,6 +2844,8 @@ class GameUI {
     }
   }
 
+  private shuffleIntervalId: number | null = null;
+
   private showResult(): void {
     if (!this.gameManager) return;
 
@@ -2744,26 +2854,98 @@ class GameUI {
     const content = document.getElementById('result-content');
 
     if (modal && content) {
-      let winnerText = '';
-      if (result.winner === 'A') {
-        winnerText = 'あなたの勝利！';
-      } else if (result.winner === 'B') {
-        winnerText = 'CPUの勝利！';
-      } else {
-        winnerText = '引き分け！';
+      // 既存のシャッフルをクリア
+      if (this.shuffleIntervalId !== null) {
+        clearInterval(this.shuffleIntervalId);
+        this.shuffleIntervalId = null;
       }
 
+      // モーダルを表示（最初からスコア表示部分を表示）
+      modal.classList.remove('hidden');
+      
+      // 最初からスコア表示部分を表示（シャッフル中）
       content.innerHTML = `
-        <div>${winnerText}</div>
-        <div style="margin-top: 20px;">
-          <div>あなた: ${result.playerAScore}点</div>
-          <div>CPU: ${result.playerBScore}点</div>
+        <div class="result-scores-shuffling">
+          <div class="result-score-item">
+            <span class="result-score-label">あなた:</span>
+            <span class="result-score-value" id="shuffling-score-a" data-score="${result.playerAScore}">0</span>
+            <span class="result-score-unit">点</span>
+          </div>
+          <div class="result-score-item">
+            <span class="result-score-label">CPU:</span>
+            <span class="result-score-value" id="shuffling-score-b" data-score="${result.playerBScore}">0</span>
+            <span class="result-score-unit">点</span>
+          </div>
         </div>
       `;
 
-      modal.classList.remove('hidden');
+      // スコアをシャッフル表示（2.5秒間）
+      this.shuffleScores(result.playerAScore, result.playerBScore);
+        
+      // 2.5秒後に結果を発表
+      setTimeout(() => {
+        // シャッフルを停止
+        if (this.shuffleIntervalId !== null) {
+          clearInterval(this.shuffleIntervalId);
+          this.shuffleIntervalId = null;
+        }
+
+        // 結果を発表
+        let winnerText = '';
+        let winnerClass = '';
+        if (result.winner === 'A') {
+          winnerText = 'あなたの勝利！';
+          winnerClass = 'result-winner-a';
+        } else if (result.winner === 'B') {
+          winnerText = 'CPUの勝利！';
+          winnerClass = 'result-winner-b';
+        } else {
+          winnerText = '引き分け！';
+          winnerClass = 'result-draw';
+        }
+
+        // 勝敗とスコアを表示
+        content.innerHTML = `
+          <div class="result-winner ${winnerClass}">${winnerText}</div>
+          <div class="result-scores" style="margin-top: 30px;">
+            <div class="result-score-item">
+              <span class="result-score-label">あなた:</span>
+              <span class="result-score-value" data-score="${result.playerAScore}">${result.playerAScore}</span>
+              <span class="result-score-unit">点</span>
+            </div>
+            <div class="result-score-item">
+              <span class="result-score-label">CPU:</span>
+              <span class="result-score-value" data-score="${result.playerBScore}">${result.playerBScore}</span>
+              <span class="result-score-unit">点</span>
+            </div>
+          </div>
+        `;
+      }, 2500);
     }
   }
+
+  private shuffleScores(scoreA: number, scoreB: number): void {
+    const scoreAElement = document.getElementById('shuffling-score-a');
+    const scoreBElement = document.getElementById('shuffling-score-b');
+
+    if (!scoreAElement || !scoreBElement) return;
+
+    // スコアの範囲を推定（実際のスコアの±50%程度の範囲でランダム）
+    const maxScore = Math.max(scoreA, scoreB);
+    const minRange = Math.max(0, maxScore - Math.floor(maxScore * 0.5));
+    const maxRange = maxScore + Math.floor(maxScore * 0.5);
+
+    // シャッフル間隔（50msごとに更新）
+    this.shuffleIntervalId = window.setInterval(() => {
+      // ランダムなスコアを表示
+      const randomA = Math.floor(Math.random() * (maxRange - minRange + 1)) + minRange;
+      const randomB = Math.floor(Math.random() * (maxRange - minRange + 1)) + minRange;
+      
+      scoreAElement.textContent = randomA.toString();
+      scoreBElement.textContent = randomB.toString();
+    }, 50);
+  }
+
 }
 
 // ゲーム開始
