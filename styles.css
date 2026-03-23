@@ -1,3 +1,41 @@
+@font-face {
+    font-family: "Jaro";
+    src: url("public/fonts/Jaro-Regular-VariableFont_opsz.ttf") format("truetype");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "KitchenGothic";
+    src: url("public/fonts/キチE��ンゴシチE��.ttf") format("truetype");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "GenEiKiwamiGo";
+    src: url("public/fonts/GenEiKiwamiGo.ttf") format("truetype");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "NaishoMoji";
+    src: url("public/fonts/NaishoMoji-Regular.otf") format("opentype");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "BaseballPark";
+    src: url("public/fonts/baseballpark.ttf") format("truetype");
+    font-display: swap;
+}
+
+:root{
+    --ui-bg-0: #0b1020;
+    --ui-bg-1: #0f1630;
+    --ui-accent-a: #9b5cff;
+    --ui-accent-b: #28f4ff;
+    --ui-accent-c: #ffe66d;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -5,24 +43,40 @@
 }
 
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: "GenEiKiwamiGo", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background:
+        radial-gradient(1200px 800px at 20% 10%, rgba(155, 92, 255, 0.35), transparent 55%),
+        radial-gradient(900px 700px at 80% 15%, rgba(40, 244, 255, 0.25), transparent 60%),
+        radial-gradient(1100px 900px at 60% 90%, rgba(255, 230, 109, 0.14), transparent 60%),
+        linear-gradient(135deg, var(--ui-bg-0) 0%, var(--ui-bg-1) 100%);
     min-height: 100vh;
     padding: 20px;
-    color: #333;
+    color: rgba(255,255,255,0.92);
+    overflow-x: hidden;
 }
 
 #app {
     max-width: 1400px;
     margin: 0 auto;
+    transition: opacity 450ms ease, filter 450ms ease, transform 450ms ease;
+}
+
+/* 画面オーバ�Eレイ表示中はゲームUIを抑える */
+#app.game-hidden{
+    opacity: 0;
+    pointer-events: none;
+    filter: blur(10px) saturate(0.85);
+    transform: translateY(10px) scale(0.99);
 }
 
 header {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.08);
     padding: 20px;
     border-radius: 10px;
     margin-bottom: 20px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(10px);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -30,7 +84,8 @@ header {
 
 header h1 {
     font-size: 2em;
-    color: #667eea;
+    letter-spacing: 0.02em;
+    color: rgba(255,255,255,0.92);
 }
 
 #game-info {
@@ -47,22 +102,24 @@ header h1 {
 }
 
 .player-section {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.08);
     padding: 20px;
     border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(10px);
 }
 
 .player-section h2 {
     margin-bottom: 10px;
-    color: #667eea;
+    color: rgba(255,255,255,0.9);
 }
 
 .score {
     font-size: 1.2em;
     font-weight: bold;
     margin-bottom: 15px;
-    color: #764ba2;
+    color: rgba(255,255,255,0.88);
 }
 
 .player-status {
@@ -87,157 +144,631 @@ header h1 {
     gap: 10px;
     max-height: 500px;
     overflow-y: auto;
+    align-items: center;
 }
 
+/* --- 手札カード！Eigma 参老E��イアウチE/ 657ÁE10 基準を縮小表示�E�E--- */
 .card {
-    background: #fff;
-    border: 2px solid #ddd;
-    border-radius: 8px;
-    padding: 12px;
-    cursor: pointer;
-    transition: all 0.3s;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     position: relative;
+    width: 280px;
+    flex: 0 0 auto;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: filter 0.2s ease, transform 0.2s ease;
+    font-family: "GenEiKiwamiGo", "Segoe UI", sans-serif;
+    box-shadow: none;
 }
 
 .card:hover {
-    border-color: #667eea;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    filter: brightness(1.06);
+    transform: translateY(-1px);
 }
 
-.card.selected {
-    border-color: #764ba2;
-    background: #f0e6ff;
-    font-weight: bold;
+.card.selected .card-visual {
+    filter: drop-shadow(0 0 10px rgba(155, 92, 255, 0.85));
 }
 
 .card.used {
-    opacity: 0.5;
+    opacity: 0.48;
     cursor: not-allowed;
-    background: #f5f5f5;
+    filter: grayscale(0.35);
 }
 
-.card-header {
+.card.disabled {
+    opacity: 0.5 !important;
+    cursor: not-allowed !important;
+    filter: grayscale(0.2);
+    pointer-events: none;
+}
+
+.card-visual {
+    position: relative;
+    width: 657px;
+    height: 310px;
+    transform: scale(0.425);
+    transform-origin: top center;
+    margin: 0 auto -178px;
+}
+
+.card-whole {
+    position: absolute;
+    left: 0;
+    top: 5px;
+    width: 651.963px;
+    height: 305px;
+    border-radius: 31px;
+    overflow: hidden;
+    border: 6px solid #000;
+    box-sizing: border-box;
+}
+
+/* ========== 色・強化�E特殊カード�E通レイアウト！EVG背景・区刁E��線�E種別枠・星！E========== */
+.card--special .card-whole, .card--color .card-whole, .card--fort .card-whole {
+    border: none;
+    border-radius: 0;
+    overflow: visible;
+    background: transparent;
+    box-shadow: none;
+}
+
+.card--special .card-whole-inner, .card--color .card-whole-inner, .card--fort .card-whole-inner {
+    position: absolute;
+    inset: -3px;
+    pointer-events: none;
+}
+
+.card--special .card-svg, .card--color .card-svg, .card--fort .card-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.card--special .horizontal-line, .card--color .horizontal-line, .card--fort .horizontal-line {
+    position: absolute;
+    height: 0;
+    left: 0;
+    top: 86.09px;
+    width: 654px;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.card--special .horizontal-line-inner, .card--color .horizontal-line-inner, .card--fort .horizontal-line-inner {
+    position: absolute;
+    top: -3px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.card--special .line-svg, .card--color .line-svg, .card--fort .line-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.card--special .card-type-frame-inner, .card--color .card-type-frame-inner, .card--fort .card-type-frame-inner {
+    position: absolute;
+    top: -1.5px;
+    right: -1.5px;
+    bottom: -1.5px;
+    left: -2.93px;
+}
+
+.card--special .special-text, .card--color .special-text, .card--fort .special-text {
+    position: absolute;
+    left: 554.5px;
+    top: 22px;
+    transform: translateX(-50%);
+    width: 135px;
+    font-family: "NaishoMoji", sans-serif;
+    font-size: 32px;
+    line-height: normal;
+    text-align: center;
+    color: #fff;
+    font-style: normal;
+    z-index: 4;
+    pointer-events: none;
+    margin: 0;
+}
+
+.card--special .special-text-inner, .card--color .special-text-inner, .card--fort .special-text-inner {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+    text-align: center;
+}
+
+.card--special .card-header-inner, .card--color .card-header-inner, .card--fort .card-header-inner {
+    position: absolute;
+    top: -1.5px;
+    right: -2.93px;
+    bottom: -1.5px;
+    left: -1.5px;
+}
+
+.card--special .card-header, .card--color .card-header, .card--fort .card-header {
+    position: absolute;
+    left: 2px;
+    top: 8px;
+    width: 480.5px;
+    height: 74px;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.card--special .card-name, .card--color .card-name, .card--fort .card-name {
+    position: absolute;
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
+    justify-content: center;
+    height: 49px;
+    left: 185px;
+    top: 51.5px;
+    transform: translateY(-50%);
+    width: 224px;
+    font-family: "GenEiKiwamiGo", sans-serif;
+    font-weight: 900;
+    font-size: 20px;
+    line-height: 0;
+    color: rgba(11, 11, 11, 0.99);
+    font-style: normal;
+    z-index: 3;
+    pointer-events: none;
+    margin: 0;
+}
+
+.card--special .card-name p, .card--color .card-name p, .card--fort .card-name p {
+    margin: 0;
+    line-height: normal;
+    width: 100%;
+    text-align: center;
+}
+
+.card--special .star-container, .card--color .star-container, .card--fort .star-container {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    top: 27px;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.card--special .star-inner, .card--color .star-inner, .card--fort .star-inner {
+    position: absolute;
+    top: 0;
+    right: 0.88px;
+    bottom: 3.44px;
+    left: 0.88px;
+}
+
+.card--special .star-svg, .card--color .star-svg, .card--fort .star-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.card--special .star-container.star-1, .card--color .star-container.star-1, .card--fort .star-container.star-1 {
+    left: 27px;
+}
+
+.card--special .star-container.star-2, .card--color .star-container.star-2, .card--fort .star-container.star-2 {
+    left: 99px;
+}
+
+.card--special .star-container.star-3, .card--color .star-container.star-3, .card--fort .star-container.star-3 {
+    left: 63px;
+}
+
+.card--special .flavor-power-button, .card--color .flavor-power-button, .card--fort .flavor-power-button {
+    position: absolute;
+    background-color: black;
+    height: 3px;
+    left: 60px;
+    top: 0;
+    width: 37px;
+    z-index: 4;
+    pointer-events: none;
+}
+
+.card--special .flavor-side-button-1, .card--color .flavor-side-button-1, .card--fort .flavor-side-button-1 {
+    position: absolute;
+    background-color: black;
+    height: 40px;
+    left: 655px;
+    top: 56px;
+    width: 2px;
+    z-index: 4;
+    pointer-events: none;
+}
+
+.card--special .flavor-side-button-2, .card--color .flavor-side-button-2, .card--fort .flavor-side-button-2 {
+    position: absolute;
+    background-color: black;
+    height: 40px;
+    left: 655px;
+    top: 111px;
+    width: 2px;
+    z-index: 4;
+    pointer-events: none;
+}
+
+.card--special .vertical-line-container, .card--color .vertical-line-container, .card--fort .vertical-line-container {
+    position: absolute;
+    display: flex;
+    height: 77px;
     align-items: center;
-    margin-bottom: 5px;
+    justify-content: center;
+    left: 151px;
+    top: 6px;
+    width: 0;
+    z-index: 3;
+    pointer-events: none;
 }
 
-.card-id {
-    font-weight: bold;
-    color: #667eea;
+.card--special .vertical-line-rotated, .card--color .vertical-line-rotated, .card--fort .vertical-line-rotated {
+    flex: none;
+    transform: rotate(90deg);
 }
 
-.card-type {
-    font-size: 0.8em;
-    padding: 2px 8px;
-    border-radius: 4px;
-    background: #e0e0e0;
+.card--special .vertical-line, .card--color .vertical-line, .card--fort .vertical-line {
+    height: 0;
+    position: relative;
+    width: 77px;
 }
 
-.card-type.color {
-    background: #4caf50; /* 緑 */
-    color: white;
+.card--special .vertical-line-inner, .card--color .vertical-line-inner, .card--fort .vertical-line-inner {
+    position: absolute;
+    top: -6px;
+    left: 0;
+    right: 0;
+    bottom: 0;
 }
 
-.card-type.fort {
-    background: #f44336; /* 赤 */
-    color: white;
+.card--special .card-description-box, .card--color .card-description-box, .card--fort .card-description-box {
+    position: absolute;
+    background-color: #0c0c0c;
+    height: 170px;
+    left: 31px;
+    top: 114px;
+    width: 591px;
+    border: none;
+    z-index: 1;
 }
 
-.card-type.special {
-    background: #ff9800; /* オレンジ */
-    color: white;
+.card--special .description-text, .card--color .description-text, .card--fort .description-text {
+    position: absolute;
+    font-family: "GenEiKiwamiGo", sans-serif;
+    font-weight: 900;
+    min-height: 0;
+    max-height: 85px;
+    overflow: hidden;
+    line-height: normal;
+    left: 72px;
+    font-style: normal;
+    color: #3cff00;
+    font-size: 24px;
+    top: 145px;
+    width: 519px;
+    z-index: 2;
+    pointer-events: none;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
 }
 
-.card-strength {
-    font-size: 0.9em;
-    font-weight: bold;
-    color: #ffd700;
-    margin-left: 5px;
+.card--special .remaining-turns-text, .card--color .remaining-turns-text, .card--fort .remaining-turns-text {
+    position: absolute;
+    font-family: "BaseballPark", "GenEiKiwamiGo", sans-serif;
+    min-height: 0;
+    line-height: normal;
+    left: 74px;
+    font-style: normal;
+    color: #f6ff00;
+    font-size: 32px;
+    top: 239px;
+    width: 517px;
+    z-index: 2;
+    pointer-events: none;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.card-name {
-    font-weight: bold;
-    margin-bottom: 5px;
+.card--special .remaining-turns-text.effect-changed, .card--color .remaining-turns-text.effect-changed, .card--fort .remaining-turns-text.effect-changed {
+    color: #ff9a3c;
+    text-shadow: 0 0 8px rgba(255, 200, 0, 0.9);
+}
+
+.card--special.effect-changed .card-visual, .card--color.effect-changed .card-visual, .card--fort.effect-changed .card-visual {
+    filter: drop-shadow(0 0 8px rgba(255, 180, 0, 0.75));
+}
+
+/* 色カード：説明エリアはグリチE��パターン */
+.card--color .color-card-pattern-wrap {
+    position: absolute;
+    left: 31px;
+    top: 114px;
+    width: 591px;
+    height: 170px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.card-type-frame {
+    position: absolute;
+    left: 432px;
+    top: 8px;
+    width: 217px;
+    height: 73.885px;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.card-type-frame svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.card-type-text {
+    position: absolute;
+    left: 430px;
+    top: 8px;
+    width: 220px;
+    height: 74px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    box-sizing: border-box;
+    font-family: "NaishoMoji", sans-serif;
+    font-size: 32px;
+    font-weight: 400;
+    color: #fff;
+    text-align: center;
+    line-height: 1;
+    z-index: 4;
+    pointer-events: none;
+}
+
+.card-type-text-inner {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+    text-align: center;
+}
+
+.card-header-panel {
+    position: absolute;
+    left: 2px;
+    top: 8px;
+    width: 480.5px;
+    height: 74px;
+    z-index: 2;
+    pointer-events: none;
+}
+
+.card-header-bg {
+    z-index: 0;
+}
+
+.card-stars,
+.card-vsep,
+.card-title-wrap {
+    z-index: 2;
+}
+
+.card-header-panel svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.card-stars {
+    position: absolute;
+    top: 27px;
+    left: 27px;
+    display: flex;
+    gap: 2px;
+    width: 110px;
+    justify-content: flex-start;
+}
+
+.card-star-slot {
+    width: 34px;
+    height: 33px;
+    flex: 0 0 auto;
+}
+
+.card-star-slot svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.card-vsep {
+    position: absolute;
+    left: 151px;
+    top: 6px;
+    width: 6px;
+    height: 77px;
+    background: #000;
+}
+
+.card-title-wrap {
+    position: absolute;
+    left: 168px;
+    top: 0;
+    width: 260px;
+    height: 74px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    box-sizing: border-box;
+    pointer-events: none;
+}
+
+.card-title {
+    font-family: "GenEiKiwamiGo", sans-serif;
+    font-weight: 700;
+    color: rgba(11, 11, 11, 0.99);
+    font-size: 36px;
+    line-height: 1.05;
+    white-space: nowrap;
+    max-width: 100%;
+    text-align: center;
+}
+
+.card-flavor-power {
+    position: absolute;
+    top: 0;
+    left: 60px;
+    width: 37px;
+    height: 3px;
+    background: #000;
+    z-index: 4;
+}
+
+.card-flavor-side {
+    position: absolute;
+    left: 655px;
+    width: 2px;
+    height: 40px;
+    background: #000;
+    z-index: 4;
+}
+
+.card-flavor-side.a {
+    top: 56px;
+}
+
+.card-flavor-side.b {
+    top: 111px;
+}
+
+.card-desc-box {
+    position: absolute;
+    left: 31px;
+    top: 114px;
+    width: 591px;
+    height: 170px;
+    background: #0b0c0b;
+    border: 1px solid #141414;
+    box-sizing: border-box;
+    z-index: 1;
+    overflow: hidden;
+}
+
+.card--color .card-desc-box {
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .card-description {
-    font-size: 0.9em;
-    color: #666;
+    font-family: "GenEiKiwamiGo", sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: #3cff00;
+    line-height: 1.35;
+    text-align: left;
+    width: 100%;
+    height: 100%;
+    padding: 14px 36px 40px 40px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.card--color .card-description {
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0;
+    color: transparent;
+}
+
+.card-desc-main {
+    margin: 0;
+    max-height: 108px;
+    overflow: hidden;
+}
+
+.card-turn-hiragana {
+    position: absolute;
+    left: 40px;
+    right: 34px;
+    bottom: 10px;
+    font-family: "BaseballPark", "GenEiKiwamiGo", sans-serif;
+    font-size: 28px;
+    line-height: 1.1;
+    color: #f6ff00;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-turn-hiragana.effect-changed {
+    color: #ffe066;
 }
 
 .color-card-pattern {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 2px 0;
     width: 100%;
+    height: 100%;
+    min-height: 120px;
     overflow: hidden;
     box-sizing: border-box;
 }
 
 .color-card-pattern svg {
-    width: 100%;
-    height: 55px;
+    width: 149px;
+    height: 150px;
     max-width: 100%;
-    max-height: 55px;
+    max-height: 100%;
     display: block;
 }
 
-.card-desc-main {
-    margin-bottom: 5px;
-}
-
-.card-turn-info {
-    font-size: 0.85em;
-    padding: 4px 8px;
-    margin-top: 5px;
-    border-radius: 4px;
-    background: #e3f2fd;
-    color: #1976d2;
-    font-weight: 500;
-    border-left: 3px solid #2196f3;
-}
-
-.card-turn-info.effect-changed {
-    background: #fff3e0;
-    color: #e65100;
-    border-left-color: #ff9800;
-    font-weight: bold;
-}
-
-.card.effect-changed {
-    border-color: #ff9800;
-    background: #fff8e1;
-    box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
-}
-
-.card.effect-changed::before {
-    content: "⚡";
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    font-size: 1.2em;
-    color: #ff9800;
-}
-
 #board-container {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.08);
     padding: 20px;
     border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255,255,255,0.12);
+    backdrop-filter: blur(10px);
     display: flex;
     flex-direction: column;
     align-items: center;
 }
 
 #board-wrapper {
+    --board-size: 5;
+    --cell-size: 60px;
+    --label-size: 30px;
     display: grid;
-    grid-template-columns: 30px 1fr;
-    grid-template-rows: 30px 1fr;
+    grid-template-columns: var(--label-size) auto;
+    grid-template-rows: var(--label-size) auto;
     gap: 2px;
     margin-bottom: 15px;
 }
@@ -246,7 +777,7 @@ header h1 {
     grid-column: 2;
     grid-row: 1;
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(var(--board-size), var(--cell-size));
     gap: 2px;
 }
 
@@ -254,7 +785,7 @@ header h1 {
     grid-column: 1;
     grid-row: 2;
     display: grid;
-    grid-template-rows: repeat(5, 1fr);
+    grid-template-rows: repeat(var(--board-size), var(--cell-size));
     gap: 2px;
 }
 
@@ -266,6 +797,8 @@ header h1 {
     background: #333;
     padding: 2px;
     border-radius: 5px;
+    grid-template-columns: repeat(var(--board-size), var(--cell-size));
+    grid-auto-rows: var(--cell-size);
 }
 
 .column-label, .row-label {
@@ -280,17 +813,17 @@ header h1 {
 }
 
 .column-label {
-    height: 30px;
+    height: var(--label-size);
 }
 
 .row-label {
-    width: 30px;
-    height: 60px;
+    width: var(--label-size);
+    height: var(--cell-size);
 }
 
 .cell {
-    width: 60px;
-    height: 60px;
+    width: var(--cell-size);
+    height: var(--cell-size);
     background: #f5f5f5;
     border: 1px solid #ddd;
     border-radius: 3px;
@@ -311,7 +844,7 @@ header h1 {
 }
 
 .cell.player-a {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--player-a-color-1, #667eea) 0%, var(--player-a-color-2, #764ba2) 100%);
     color: white;
 }
 
@@ -352,7 +885,7 @@ header h1 {
 }
 
 .cell.player-b {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    background: linear-gradient(135deg, var(--player-b-color-1, #f093fb) 0%, var(--player-b-color-2, #f5576c) 100%);
     color: white;
 }
 
@@ -467,7 +1000,7 @@ header h1 {
 }
 
 .action-log {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.10);
     padding: 15px;
     border-radius: 5px;
     max-height: 200px;
@@ -514,6 +1047,7 @@ header h1 {
 }
 
 .toggle-btn {
+    font-family: "KitchenGothic", "GenEiKiwamiGo", sans-serif;
     background: #4caf50;
     color: white;
     border: none;
@@ -596,169 +1130,9 @@ header h1 {
     box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
 }
 
-.dev-mode-btn {
-    background: #6c757d;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 0.9em;
-    transition: background 0.3s;
-}
-
-.dev-mode-btn:hover {
-    background: #5a6268;
-}
-
-.dev-mode-btn.active {
-    background: #28a745;
-}
-
-.dev-mode-panel {
-    background: rgba(255, 255, 255, 0.98);
-    padding: 20px;
-    border-radius: 10px;
-    margin-top: 20px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    border: 2px solid #667eea;
-}
-
-.dev-mode-panel.hidden {
-    display: none;
-}
-
-.dev-mode-panel h3 {
-    margin-bottom: 15px;
-    color: #667eea;
-    font-size: 1.2em;
-}
-
-.dev-setting {
-    margin-bottom: 15px;
-}
-
-.dev-setting label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: bold;
-    color: #333;
-}
-
-.dev-setting select,
-.dev-setting input[type="number"] {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    font-size: 1em;
-}
-
-.dev-setting textarea {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    font-size: 0.9em;
-    font-family: monospace;
-    resize: vertical;
-}
-
-.dev-setting small {
-    display: block;
-    margin-top: 5px;
-    color: #666;
-    font-size: 0.85em;
-}
-
-.dev-card-selector {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 10px;
-}
-
-.dev-card-selector select {
-    flex: 1;
-}
-
-.dev-card-selector button {
-    padding: 8px 15px;
-    background: #667eea;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 0.9em;
-}
-
-.dev-card-selector button:hover {
-    background: #5568d3;
-}
-
-.dev-selected-cards {
-    margin-top: 10px;
-    padding: 10px;
-    background: #f5f5f5;
-    border-radius: 5px;
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.dev-card-list {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.dev-card-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 5px 10px;
-    background: white;
-    border-radius: 3px;
-}
-
-.dev-remove-card-btn {
-    padding: 4px 10px;
-    background: #dc3545;
-    color: white;
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-    font-size: 0.85em;
-}
-
-.dev-remove-card-btn:hover {
-    background: #c82333;
-}
-
-.dev-card-count {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid #ddd;
-    font-weight: bold;
-    color: #667eea;
-}
-
-#dev-apply-btn {
-    background: #28a745;
-    color: white;
-    border: none;
-    padding: 12px 24px;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 1em;
-    font-weight: bold;
-    width: 100%;
-    transition: background 0.3s;
-}
-
-#dev-apply-btn:hover {
-    background: #218838;
-}
 
 button {
+    font-family: "KitchenGothic", "GenEiKiwamiGo", sans-serif;
     padding: 12px 24px;
     font-size: 1em;
     border: none;
@@ -795,6 +1169,171 @@ button:disabled {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
+#main-menu-btn{
+    background: linear-gradient(135deg, rgba(155, 92, 255, 0.95), rgba(40, 244, 255, 0.65));
+    color: rgba(255,255,255,0.95);
+    border: 1px solid rgba(255,255,255,0.15);
+}
+
+#main-menu-btn:hover{
+    filter: brightness(1.05);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+/* Free mode setup panel */
+.setup-panel{
+    width: min(1100px, 94vw);
+    margin: 0 auto;
+    padding: 22px 22px;
+    border-radius: 18px;
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.14);
+    box-shadow: 0 18px 60px rgba(0,0,0,0.45);
+    backdrop-filter: blur(14px);
+    text-align: left;
+}
+
+.setup-title{
+    font-family: "Jaro", system-ui, sans-serif;
+    font-size: 64px;
+    letter-spacing: 0.02em;
+    margin-bottom: 8px;
+    color: rgba(255,255,255,0.92);
+}
+
+.setup-sub{
+    font-family: "GenEiKiwamiGo", sans-serif;
+    color: rgba(255,255,255,0.72);
+    margin-bottom: 16px;
+}
+
+.setup-grid{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.setup-field{
+    padding: 14px 14px;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.20);
+    border: 1px solid rgba(255,255,255,0.10);
+}
+
+.setup-label{
+    font-family: "GenEiKiwamiGo", sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.78);
+    margin-bottom: 8px;
+}
+
+.setup-field select,
+.setup-field input{
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.10);
+    color: rgba(255,255,255,0.92);
+    font-family: "GenEiKiwamiGo", sans-serif;
+}
+
+.setup-field option{
+    color: #111;
+}
+
+.setup-cards{
+    grid-column: 1 / -1;
+}
+
+.setup-row{
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+}
+
+.setup-add-btn{
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: rgba(255,255,255,0.92);
+}
+
+.setup-add-btn:hover{ filter: brightness(1.05); }
+
+.setup-selected{
+    margin-top: 10px;
+    max-height: 220px;
+    overflow: auto;
+    padding: 10px;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.20);
+    border: 1px solid rgba(255,255,255,0.10);
+}
+
+.setup-selected-item{
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+    padding: 7px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-family: "GenEiKiwamiGo", sans-serif;
+    color: rgba(255,255,255,0.90);
+}
+
+.setup-selected-item:last-child{ border-bottom: none; }
+
+.setup-remove-btn{
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: rgba(255, 0, 80, 0.25);
+    border: 1px solid rgba(255, 0, 80, 0.35);
+    color: rgba(255,255,255,0.92);
+    font-family: "GenEiKiwamiGo", sans-serif;
+}
+
+.setup-actions{
+    margin-top: 16px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.setup-primary{
+    padding: 12px 18px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(40, 244, 255, 0.85), rgba(155, 92, 255, 0.85));
+    color: rgba(0,0,0,0.88);
+    border: 1px solid rgba(255,255,255,0.18);
+}
+
+.setup-secondary{
+    padding: 12px 18px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.10);
+    color: rgba(255,255,255,0.92);
+    border: 1px solid rgba(255,255,255,0.16);
+}
+
+.setup-help{
+    margin-top: 10px;
+    font-family: "GenEiKiwamiGo", sans-serif;
+    font-size: 13px;
+    color: rgba(255,255,255,0.70);
+    line-height: 1.7;
+}
+
+@media (max-width: 860px){
+    .setup-grid{ grid-template-columns: 1fr; }
+    .setup-title{ font-size: 48px; }
+}
+
 .modal {
     position: fixed;
     top: 0;
@@ -821,6 +1360,250 @@ button:disabled {
     min-height: 400px;
     text-align: center;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* メインメニュー戻り確認モーダル */
+.menu-confirm-content{
+    background: rgba(15, 22, 48, 0.92);
+    color: rgba(255,255,255,0.92);
+    border: 1px solid rgba(255,255,255,0.14);
+    backdrop-filter: blur(12px);
+    max-width: 640px;
+    min-height: unset;
+}
+
+.menu-confirm-content h2{
+    color: rgba(255,255,255,0.92);
+    font-family: "GenEiKiwamiGo", sans-serif;
+    margin-bottom: 14px;
+}
+
+.menu-confirm-text{
+    font-family: "GenEiKiwamiGo", sans-serif;
+    color: rgba(255,255,255,0.75);
+    line-height: 1.8;
+    margin-bottom: 18px;
+}
+
+.menu-confirm-actions{
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+/* =========================
+   Title / Menu Screens
+   ========================= */
+#screen-root{
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    pointer-events: none;
+}
+
+#screen-root .screen{
+    pointer-events: auto;
+    width: 100%;
+    height: 100%;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    animation: screen-enter 520ms ease both;
+}
+
+#screen-root .screen::before{
+    content:"";
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(1200px 800px at 30% 15%, rgba(155, 92, 255, 0.55), transparent 55%),
+        radial-gradient(900px 700px at 70% 25%, rgba(40, 244, 255, 0.35), transparent 60%),
+        radial-gradient(1000px 800px at 60% 90%, rgba(255, 230, 109, 0.18), transparent 60%),
+        linear-gradient(135deg, rgba(7, 10, 18, 0.86), rgba(12, 18, 34, 0.92));
+    filter: saturate(1.15);
+}
+
+#screen-root .screen::after{
+    /* ぁE��すらノイズ + 走査緁E*/
+    content:"";
+    position: absolute;
+    inset: 0;
+    background:
+        repeating-linear-gradient(
+            to bottom,
+            rgba(255,255,255,0.05) 0px,
+            rgba(255,255,255,0.05) 1px,
+            transparent 2px,
+            transparent 6px
+        );
+    mix-blend-mode: overlay;
+    opacity: 0.18;
+    pointer-events:none;
+}
+
+.screen-inner{
+    position: relative;
+    width: min(1080px, 92vw);
+    text-align: center;
+}
+
+.title-logo{
+    font-family: "Jaro", system-ui, sans-serif;
+    font-size: clamp(92px, 9vw, 180px);
+    letter-spacing: 0.02em;
+    line-height: 0.95;
+    margin-bottom: 12px;
+    color: transparent;
+    background: linear-gradient(102deg, rgba(153,0,255,1) 35%, rgba(255,252,83,1) 82%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-stroke: 6px rgba(0,0,0,0.35);
+    text-shadow:
+        0 10px 40px rgba(155, 92, 255, 0.18),
+        0 12px 80px rgba(40, 244, 255, 0.12);
+    transform: translateZ(0);
+}
+
+.title-sub{
+    font-family: "GenEiKiwamiGo", sans-serif;
+    font-size: 15px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.78);
+    margin-bottom: 38px;
+}
+
+.press-any{
+    font-family: "Jaro", system-ui, sans-serif;
+    font-size: clamp(28px, 2.5vw, 52px);
+    letter-spacing: 0.02em;
+    color: transparent;
+    background:
+        linear-gradient(to bottom right, rgba(255,0,0,1), rgba(153,0,0,1));
+    -webkit-background-clip: text;
+    background-clip: text;
+    text-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    animation: press-pulse 1.2s ease-in-out infinite;
+    user-select: none;
+}
+
+.hint-row{
+    margin-top: 18px;
+    font-size: 14px;
+    color: rgba(255,255,255,0.65);
+}
+
+.menu-grid{
+    width: min(1200px, 94vw);
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 22px;
+    align-items: stretch;
+}
+
+.menu-col{
+    display: grid;
+    gap: 22px;
+}
+
+.mode-card{
+    position: relative;
+    border-radius: 18px;
+    padding: 26px 26px;
+    min-height: 190px;
+    border: 2px solid rgba(255,255,255,0.10);
+    box-shadow: 0 18px 60px rgba(0,0,0,0.45);
+    backdrop-filter: blur(12px);
+    cursor: pointer;
+    outline: none;
+    transform: translateZ(0);
+    transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease, filter 220ms ease;
+}
+
+.mode-card::before{
+    content:"";
+    position: absolute;
+    inset: -2px;
+    border-radius: 20px;
+    background: linear-gradient(145deg, rgba(0,0,0,0.65), rgba(255,255,255,0.25));
+    opacity: 0.25;
+    pointer-events: none;
+}
+
+.mode-card:hover,
+.mode-card:focus-visible{
+    transform: translateY(-4px) scale(1.01);
+    border-color: rgba(255,255,255,0.22);
+    box-shadow: 0 26px 80px rgba(0,0,0,0.55);
+}
+
+.mode-title{
+    font-family: "KitchenGothic", "GenEiKiwamiGo", sans-serif;
+    font-size: clamp(28px, 2.4vw, 44px);
+    letter-spacing: 0.02em;
+    color: rgba(0,0,0,0.88);
+    text-shadow: 0 3px 0 rgba(255,255,255,0.55);
+}
+
+.mode-desc{
+    font-family: "GenEiKiwamiGo", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    margin-top: 10px;
+    font-size: 14px;
+    line-height: 1.8;
+    color: rgba(0,0,0,0.72);
+}
+
+.mode-chip{
+    position:absolute;
+    top: 18px;
+    right: 18px;
+    padding: 7px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    background: rgba(0,0,0,0.20);
+    color: rgba(255,255,255,0.9);
+    border: 1px solid rgba(255,255,255,0.22);
+    backdrop-filter: blur(10px);
+}
+
+.bg-story{ background: linear-gradient(114deg, rgba(255,0,98,1) 0%, rgba(219,12,15,1) 58%, rgba(153,0,3,1) 81%, rgba(109,22,23,1) 100%); }
+.bg-free{ background: linear-gradient(128deg, rgba(21,224,255,1) 0%, rgba(223,251,255,1) 100%); }
+.bg-tutorial{ background: linear-gradient(132deg, rgba(20,255,98,1) 0%, rgba(187,187,187,1) 70%, rgba(255,255,255,1) 100%); }
+
+.menu-title{
+    font-family: "GenEiKiwamiGo", sans-serif;
+    font-size: 18px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.74);
+    margin-bottom: 18px;
+}
+
+.screen-exit{
+    animation: screen-exit 520ms ease both;
+}
+
+@keyframes press-pulse{
+    0%,100%{ transform: translateY(0); opacity: 0.75; filter: drop-shadow(0 0 0 rgba(255,0,0,0));}
+    50%{ transform: translateY(2px); opacity: 1; filter: drop-shadow(0 10px 18px rgba(255,0,0,0.25));}
+}
+
+@keyframes screen-enter{
+    from{ opacity: 0; transform: translateY(10px) scale(1.01); }
+    to{ opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes screen-exit{
+    from{ opacity: 1; transform: translateY(0) scale(1); }
+    to{ opacity: 0; transform: translateY(-10px) scale(0.99); }
+}
+
+@media (prefers-reduced-motion: reduce){
+    #app{ transition: none; }
+    #screen-root .screen{ animation: none; }
+    .press-any{ animation: none; }
+    .mode-card{ transition: none; }
 }
 
 .modal-content h2 {
@@ -875,12 +1658,12 @@ button:disabled {
 }
 
 .result-winner-a {
-    color: #667eea;
+    color: var(--player-a-color-1, #667eea);
     animation: winner-appear 0.8s ease-out, winner-glow-a 2s ease-in-out infinite;
 }
 
 .result-winner-b {
-    color: #f5576c;
+    color: var(--player-b-color-1, #f5576c);
     animation: winner-appear 0.8s ease-out, winner-glow-b 2s ease-in-out infinite;
 }
 
@@ -988,14 +1771,14 @@ button:disabled {
 }
 
 .result-score-item:first-child .result-score-value {
-    color: #667eea;
+    color: var(--player-a-color-1, #667eea);
 }
 
 .result-score-item:last-child .result-score-value {
-    color: #f5576c;
+    color: var(--player-b-color-1, #f5576c);
 }
 
-/* シャッフル中のスコア値のスタイル */
+/* シャチE��ル中のスコア値のスタイル */
 #shuffling-score-a,
 #shuffling-score-b {
     animation: score-shuffle 0.1s ease-in-out infinite;
@@ -1026,7 +1809,7 @@ button:disabled {
     background: #5568d3;
 }
 
-/* スクロールバーのスタイル */
+/* スクロールバ�Eのスタイル */
 .hand::-webkit-scrollbar {
     width: 8px;
 }

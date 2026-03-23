@@ -2,19 +2,62 @@
   "name": "forcard",
   "version": "1.0.0",
   "description": "ForCard - A strategic card-based territory control game",
-  "main": "index.js",
+  "main": "electron/main.cjs",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "serve": "npx http-server . -p 8080 -c-1",
-    "start": "npm run build && npm run serve"
+    "start": "npm run build && npm run serve",
+    "desktop": "npm run build && electron .",
+    "dist:win": "npm run build && node tools/run-electron-builder.cjs --win nsis",
+    "dist:portable": "npm run build && node tools/run-electron-builder.cjs --win portable"
   },
-  "keywords": ["game", "card-game", "strategy"],
+  "keywords": [
+    "game",
+    "card-game",
+    "strategy"
+  ],
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "typescript": "^5.3.3",
-    "@types/node": "^20.10.0"
+    "@types/node": "^20.10.0",
+    "electron": "^41.0.3",
+    "electron-builder": "^26.8.1",
+    "typescript": "^5.3.3"
+  },
+  "build": {
+    "appId": "com.forcard.app",
+    "productName": "ForCard",
+    "npmArgs": [
+      "--omit=dev"
+    ],
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "public/**/*",
+      "index.html",
+      "styles.css",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }
-

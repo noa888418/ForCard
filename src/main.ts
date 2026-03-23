@@ -6,6 +6,21 @@ import { Board } from './Board.js';
 import { CPUPlayer } from './CPUPlayer.js';
 import { Card } from './Card.js';
 
+// 色パターンの型定義
+type ColorPattern = {
+  color1: string;
+  color2: string;
+  name: string;
+};
+
+type GameStartSettings = Partial<{
+  boardSize: number;
+  totalTurns: number;
+  cardIds: string[] | null;
+  playerBIsCPU: boolean;
+  cpuDifficulty: 'easy' | 'normal' | 'hard';
+}>;
+
 class GameUI {
   private gameManager: GameManager | null = null;
   private cpuPlayer: CPUPlayer | null = null;
@@ -19,43 +34,163 @@ class GameUI {
   private showingReveal: boolean = false; // 公開フェーズ表示中か
   private doubleActionFirstCardSelected: boolean = false; // ダブルアクション中に1枚目のカードが選択されているか
   private doubleActionFirstSelection: CardSelection | null = null; // ダブルアクション中に1枚目に選択されたカード
-  private devModeEnabled: boolean = false; // 開発者モードが有効か
   private devSettings: {
     boardSize: number;
     totalTurns: number;
     cardIds: string[] | null;
     playerBIsCPU: boolean;
+    cpuDifficulty: 'easy' | 'normal' | 'hard';
   } = {
     boardSize: 5,
     totalTurns: 15,
     cardIds: null,
-    playerBIsCPU: true
+    playerBIsCPU: true,
+    cpuDifficulty: 'normal'
   };
-  
-  private devSelectedCards: string[] = []; // 開発者モードで選択されたカードIDのリスト
-  
-  // 開発者モード用の変数
-  private playerBIsCPU: boolean = true; // プレイヤーBがCPUかどうか（開発者モード設定から取得）
+
+  private playerBIsCPU: boolean = true; // プレイヤーBがCPUかどうか
   private showColorPoints: boolean = true; // 色ポイントの表示/非表示
+  // 以前の「プレイヤーB手動操作」用の選択状態（現在はCPU固定だが、既存ロジック互換のため保持）
   private playerBSelectedCardId: string | null = null;
   private playerBSelectedCardIndex: number | null = null;
   private playerBSelectedPosition: { x: number; y: number } | null = null;
   private selectedRotation: number = 0; // C16などの回転可能カードの回転角度（0=0度, 1=90度, 2=180度, 3=270度）
-  private playerBSelectedRotation: number = 0; // プレイヤーB用の回転角度
+  private playerBSelectedRotation: number = 0; // 互換維持用（現在は未使用）
   private selectedDirection: 'up' | 'down' = 'up'; // C17用の方向（上向き/下向き）
-  private playerBSelectedDirection: 'up' | 'down' = 'up'; // プレイヤーB用の方向
+  private playerBSelectedDirection: 'up' | 'down' = 'up'; // 互換維持用（現在は未使用）
   private previousStabilities: Map<string, number> = new Map(); // 前の安定度状態（key: "x,y", value: stability）
+  private onReturnToMenu?: () => void;
+  private menuConfirmOpen: boolean = false;
 
-  constructor() {
-    this.initializeGame();
+  // 色パターンの定義（補色の関係になるような組み合わせを多数用意）
+  // 各パターンは2色のグラデーションで構成され、補色の関係になるように設計
+  private colorPatterns: ColorPattern[] = [
+    // 赤系とシアン系（補色）
+    { color1: '#ff6b6b', color2: '#ee5a6f', name: '赤' },
+    { color1: '#ff4757', color2: '#ff3838', name: '深紅' },
+    { color1: '#ff6348', color2: '#ff4757', name: 'コーラルレッド' },
+    { color1: '#ff3838', color2: '#ff6b6b', name: '鮮紅' },
+    { color1: '#ff5252', color2: '#ff1744', name: 'ライトレッド' },
+    
+    // オレンジ系と青系（補色）
+    { color1: '#ff9a56', color2: '#ff6a88', name: 'オレンジ' },
+    { color1: '#ff8a65', color2: '#ff7043', name: 'ディープオレンジ' },
+    { color1: '#ffa726', color2: '#ff9800', name: 'アンバー' },
+    { color1: '#ffb74d', color2: '#ffa726', name: 'ライトオレンジ' },
+    { color1: '#ffcc80', color2: '#ffb74d', name: 'ピーチオレンジ' },
+    
+    // 黄系と青紫系（補色）
+    { color1: '#feca57', color2: '#ff9ff3', name: '黄' },
+    { color1: '#ffd54f', color2: '#ffc107', name: 'イエロー' },
+    { color1: '#fff176', color2: '#ffeb3b', name: 'ライトイエロー' },
+    { color1: '#ffd700', color2: '#ffed4e', name: 'ゴールド' },
+    { color1: '#ffc947', color2: '#ffd54f', name: 'アンバーイエロー' },
+    
+    // 黄緑系と紫系（補色）
+    { color1: '#43e97b', color2: '#38f9d7', name: '黄緑' },
+    { color1: '#7cb518', color2: '#5cb85c', name: 'ライムグリーン' },
+    { color1: '#8bc34a', color2: '#9ccc65', name: 'ライトグリーン' },
+    { color1: '#aed581', color2: '#c5e1a5', name: 'パステルグリーン' },
+    { color1: '#66bb6a', color2: '#81c784', name: 'グリーン' },
+    
+    // 緑系とマゼンタ系（補色）
+    { color1: '#4caf50', color2: '#66bb6a', name: 'エメラルドグリーン' },
+    { color1: '#26a69a', color2: '#4db6ac', name: 'ティールグリーン' },
+    { color1: '#009688', color2: '#26a69a', name: 'ティール' },
+    { color1: '#00897b', color2: '#009688', name: 'ダークティール' },
+    { color1: '#00695c', color2: '#00897b', name: 'ディープティール' },
+    
+    // 青緑系とピンク系（補色）
+    { color1: '#00bcd4', color2: '#4dd0e1', name: 'シアン' },
+    { color1: '#00acc1', color2: '#00bcd4', name: 'ライトシアン' },
+    { color1: '#0097a7', color2: '#00acc1', name: 'ダークシアン' },
+    { color1: '#00838f', color2: '#0097a7', name: 'ディープシアン' },
+    { color1: '#006064', color2: '#00838f', name: 'ダークシアン' },
+    
+    // 青系とオレンジ系（補色）
+    { color1: '#4facfe', color2: '#00f2fe', name: '青' },
+    { color1: '#2196f3', color2: '#42a5f5', name: 'ブルー' },
+    { color1: '#1e88e5', color2: '#2196f3', name: 'ディープブルー' },
+    { color1: '#1565c0', color2: '#1e88e5', name: 'ダークブルー' },
+    { color1: '#0d47a1', color2: '#1565c0', name: 'ネイビーブルー' },
+    
+    // 青紫系と黄系（補色）
+    { color1: '#667eea', color2: '#764ba2', name: '青紫' },
+    { color1: '#5c6bc0', color2: '#7986cb', name: 'インディゴ' },
+    { color1: '#3f51b5', color2: '#5c6bc0', name: 'ディープインディゴ' },
+    { color1: '#303f9f', color2: '#3f51b5', name: 'ダークインディゴ' },
+    { color1: '#1a237e', color2: '#303f9f', name: 'ネイビーインディゴ' },
+    
+    // 紫系と黄緑系（補色）
+    { color1: '#9c27b0', color2: '#ab47bc', name: 'パープル' },
+    { color1: '#8e24aa', color2: '#9c27b0', name: 'ディープパープル' },
+    { color1: '#7b1fa2', color2: '#8e24aa', name: 'ダークパープル' },
+    { color1: '#6a1b9a', color2: '#7b1fa2', name: 'ディープパープル' },
+    { color1: '#4a148c', color2: '#6a1b9a', name: 'ダークパープル' },
+    
+    // マゼンタ系と緑系（補色）
+    { color1: '#e91e63', color2: '#ec407a', name: 'ピンク' },
+    { color1: '#c2185b', color2: '#e91e63', name: 'ディープピンク' },
+    { color1: '#ad1457', color2: '#c2185b', name: 'ダークピンク' },
+    { color1: '#880e4f', color2: '#ad1457', name: 'ディープピンク' },
+    { color1: '#f50057', color2: '#ff4081', name: 'ホットピンク' },
+    
+    // ピンク系と青緑系（補色）
+    { color1: '#f093fb', color2: '#f5576c', name: 'ピンク' },
+    { color1: '#f48fb1', color2: '#f06292', name: 'ライトピンク' },
+    { color1: '#ec407a', color2: '#f48fb1', name: 'ローズピンク' },
+    { color1: '#e91e63', color2: '#ec407a', name: 'ローズ' },
+    { color1: '#c2185b', color2: '#e91e63', name: 'ディープローズ' },
+    
+    // 追加の補色ペア
+    { color1: '#00e676', color2: '#00c853', name: 'エメラルド' },
+    { color1: '#64ffda', color2: '#1de9b6', name: 'アクア' },
+    { color1: '#18ffff', color2: '#00e5ff', name: 'シアンライト' },
+    { color1: '#00b0ff', color2: '#0091ea', name: 'ライトブルー' },
+    { color1: '#2962ff', color2: '#0039cb', name: 'ロイヤルブルー' },
+    { color1: '#651fff', color2: '#6200ea', name: 'バイオレット' },
+    { color1: '#b388ff', color2: '#9c27b0', name: 'ライトパープル' },
+    { color1: '#ff4081', color2: '#e91e63', name: 'マゼンタ' },
+    { color1: '#ff1744', color2: '#d50000', name: 'レッド' },
+    { color1: '#ff9100', color2: '#ff6d00', name: 'オレンジ' },
+    { color1: '#ffc400', color2: '#ffab00', name: 'アンバー' },
+    { color1: '#76ff03', color2: '#64dd17', name: 'ライム' },
+    { color1: '#00e676', color2: '#00c853', name: 'グリーン' },
+    { color1: '#1de9b6', color2: '#00bcd4', name: 'ティール' },
+    { color1: '#00e5ff', color2: '#00b8d4', name: 'シアン' },
+    { color1: '#2979ff', color2: '#2962ff', name: 'ブルー' },
+    { color1: '#7c4dff', color2: '#651fff', name: 'インディゴ' },
+    { color1: '#d500f9', color2: '#aa00ff', name: 'パープル' },
+    { color1: '#ff00ea', color2: '#d500f9', name: 'マゼンタ' },
+    { color1: '#ff1744', color2: '#c51162', name: 'ピンクレッド' }
+  ];
+
+  constructor(initialSettings: GameStartSettings = {}, options: Partial<{ onReturnToMenu: () => void }> = {}) {
+    this.devSettings = { ...this.devSettings, ...initialSettings };
+    this.onReturnToMenu = options.onReturnToMenu;
     this.setupEventListeners();
   }
 
+  startNewGame(settings: GameStartSettings = {}): void {
+    this.devSettings = { ...this.devSettings, ...settings };
+    this.initializeGame();
+  }
+
   private initializeGame(): void {
+    // 色をランダムに選択（お互いが似ないように）
+    this.selectRandomColors();
+
     // デッキを作成
     let deck: Card[];
     if (this.devSettings.cardIds && this.devSettings.cardIds.length > 0) {
       deck = this.createDeckFromCardIds(this.devSettings.cardIds);
+      // 選択数が足りない場合はランダムで補完、超える場合は切り詰め
+      if (deck.length < this.devSettings.totalTurns) {
+        const fill = CardFactory.createRandomDeck(this.devSettings.totalTurns - deck.length);
+        deck = [...deck, ...fill];
+      } else if (deck.length > this.devSettings.totalTurns) {
+        deck = deck.slice(0, this.devSettings.totalTurns);
+      }
     } else {
       // 総ターン数に応じたデッキを作成
       deck = CardFactory.createRandomDeck(this.devSettings.totalTurns);
@@ -65,7 +200,7 @@ class GameUI {
     const playerB = new Player('B', [...deck]);
 
     this.gameManager = new GameManager(playerA, playerB, this.devSettings.boardSize, this.devSettings.totalTurns);
-    this.cpuPlayer = new CPUPlayer(playerB, 'B');
+    this.cpuPlayer = new CPUPlayer(playerB, 'B', { difficulty: this.devSettings.cpuDifficulty });
     this.currentPlayer = 'A';
     this.playerADecided = false;
     this.playerBDecided = false;
@@ -78,14 +213,9 @@ class GameUI {
     this.selectedRotation = 0;
     this.selectedDirection = 'up';
     this.hoveredPosition = null;
-    this.playerBSelectedCardId = null;
-    this.playerBSelectedCardIndex = null;
-    this.playerBSelectedPosition = null;
-    this.playerBSelectedRotation = 0;
-    this.playerBSelectedDirection = 'up';
 
-    // 開発者モードの設定からプレイヤーBのモードを取得
-    this.playerBIsCPU = this.devSettings.playerBIsCPU;
+    // プレイヤーBはCPU固定（開発者モード削除）
+    this.playerBIsCPU = true;
 
     // CPUモードの場合のみCPU選択を開始
     if (this.playerBIsCPU) {
@@ -111,6 +241,146 @@ class GameUI {
     }
     
     this.updateUI();
+  }
+
+  // 色をランダムに選択（お互いが似ないように）
+  private selectRandomColors(): void {
+    // 2つの色パターンをランダムに選択
+    const availablePatterns = [...this.colorPatterns];
+    const patternAIndex = Math.floor(Math.random() * availablePatterns.length);
+    const patternA = availablePatterns[patternAIndex];
+    
+    // プレイヤーBの色は、プレイヤーAと補色の関係になるように選択
+    const remainingPatterns = availablePatterns.filter((_, index) => index !== patternAIndex);
+    
+    // プレイヤーAの色相を取得
+    const hueA = this.getHue(patternA.color1);
+    
+    // 補色の関係（色相が180度離れている）に最も近い色を選ぶ
+    let bestPatternB: ColorPattern | null = null;
+    let minComplementaryDifference = Infinity;
+    
+    for (const patternB of remainingPatterns) {
+      const hueB = this.getHue(patternB.color1);
+      // 色相の差を計算（0-180度の範囲で）
+      const hueDiff = Math.abs(hueA - hueB);
+      const complementaryDiff = Math.min(hueDiff, 360 - hueDiff);
+      // 180度（補色）に最も近い色を選ぶ
+      const distanceFromComplementary = Math.abs(complementaryDiff - 180);
+      
+      if (distanceFromComplementary < minComplementaryDifference) {
+        minComplementaryDifference = distanceFromComplementary;
+        bestPatternB = patternB;
+      }
+    }
+    
+    // もし見つからなかった場合はランダムに選ぶ
+    if (!bestPatternB) {
+      const randomIndex = Math.floor(Math.random() * remainingPatterns.length);
+      bestPatternB = remainingPatterns[randomIndex];
+    }
+    
+    // CSS変数で色を設定
+    const root = document.documentElement;
+    root.style.setProperty('--player-a-color-1', patternA.color1);
+    root.style.setProperty('--player-a-color-2', patternA.color2);
+    root.style.setProperty('--player-b-color-1', bestPatternB.color1);
+    root.style.setProperty('--player-b-color-2', bestPatternB.color2);
+    
+    // アニメーション用の色も設定（rgba形式）
+    const rgbA = this.hexToRgb(patternA.color1);
+    const rgbB = this.hexToRgb(bestPatternB.color1);
+    
+    if (rgbA) {
+      root.style.setProperty('--player-a-rgb', `${rgbA.r}, ${rgbA.g}, ${rgbA.b}`);
+    }
+    if (rgbB) {
+      root.style.setProperty('--player-b-rgb', `${rgbB.r}, ${rgbB.g}, ${rgbB.b}`);
+    }
+    
+    // 動的にアニメーションスタイルを生成
+    this.updateWinnerGlowAnimations(patternA.color1, bestPatternB.color1);
+  }
+
+  // 勝敗表示のグローアニメーションを動的に更新
+  private updateWinnerGlowAnimations(colorA: string, colorB: string): void {
+    const rgbA = this.hexToRgb(colorA);
+    const rgbB = this.hexToRgb(colorB);
+    
+    if (!rgbA || !rgbB) return;
+    
+    // 既存のスタイルシートを削除
+    const existingStyle = document.getElementById('dynamic-winner-glow-styles');
+    if (existingStyle) {
+      existingStyle.remove();
+    }
+    
+    // 新しいスタイルシートを追加
+    const style = document.createElement('style');
+    style.id = 'dynamic-winner-glow-styles';
+    style.textContent = `
+      @keyframes winner-glow-a {
+        0%, 100% {
+          text-shadow: 2px 2px 4px rgba(${rgbA.r}, ${rgbA.g}, ${rgbA.b}, 0.5), 0 0 10px rgba(${rgbA.r}, ${rgbA.g}, ${rgbA.b}, 0.3);
+        }
+        50% {
+          text-shadow: 2px 2px 8px rgba(${rgbA.r}, ${rgbA.g}, ${rgbA.b}, 0.8), 0 0 20px rgba(${rgbA.r}, ${rgbA.g}, ${rgbA.b}, 0.6);
+        }
+      }
+      
+      @keyframes winner-glow-b {
+        0%, 100% {
+          text-shadow: 2px 2px 4px rgba(${rgbB.r}, ${rgbB.g}, ${rgbB.b}, 0.5), 0 0 10px rgba(${rgbB.r}, ${rgbB.g}, ${rgbB.b}, 0.3);
+        }
+        50% {
+          text-shadow: 2px 2px 8px rgba(${rgbB.r}, ${rgbB.g}, ${rgbB.b}, 0.8), 0 0 20px rgba(${rgbB.r}, ${rgbB.g}, ${rgbB.b}, 0.6);
+        }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // 16進数カラーコードをRGBに変換
+  private hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  }
+
+  // RGBから色相（Hue）を取得（0-360度）
+  private getHue(hex: string): number {
+    const rgb = this.hexToRgb(hex);
+    if (!rgb) return 0;
+    
+    const r = rgb.r / 255;
+    const g = rgb.g / 255;
+    const b = rgb.b / 255;
+    
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const delta = max - min;
+    
+    let hue = 0;
+    
+    if (delta === 0) {
+      hue = 0; // 無彩色
+    } else if (max === r) {
+      hue = ((g - b) / delta) % 6;
+    } else if (max === g) {
+      hue = (b - r) / delta + 2;
+    } else {
+      hue = (r - g) / delta + 4;
+    }
+    
+    hue = hue * 60;
+    if (hue < 0) {
+      hue += 360;
+    }
+    
+    return hue;
   }
 
   private createDeckFromCardIds(cardIds: string[]): Card[] {
@@ -263,8 +533,10 @@ class GameUI {
     const resolveBtn = document.getElementById('resolve-btn');
     const resetBtn = document.getElementById('reset-btn');
     const closeResultBtn = document.getElementById('close-result-btn');
-    const devModeToggle = document.getElementById('dev-mode-toggle');
-    const devApplyBtn = document.getElementById('dev-apply-btn');
+    const mainMenuBtn = document.getElementById('main-menu-btn');
+    const menuConfirmModal = document.getElementById('menu-confirm-modal');
+    const menuConfirmOk = document.getElementById('menu-confirm-ok');
+    const menuConfirmCancel = document.getElementById('menu-confirm-cancel');
 
     if (resolveBtn) {
       resolveBtn.addEventListener('click', () => this.onDecideButtonClick());
@@ -278,26 +550,45 @@ class GameUI {
       });
     }
 
+    if (mainMenuBtn) {
+      mainMenuBtn.addEventListener('click', () => {
+        if (!menuConfirmModal) return;
+        this.menuConfirmOpen = true;
+        menuConfirmModal.classList.remove('hidden');
+      });
+    }
+
+    const closeMenuConfirm = () => {
+      if (!menuConfirmModal) return;
+      this.menuConfirmOpen = false;
+      menuConfirmModal.classList.add('hidden');
+    };
+
+    if (menuConfirmCancel) {
+      menuConfirmCancel.addEventListener('click', closeMenuConfirm);
+    }
+    if (menuConfirmOk) {
+      menuConfirmOk.addEventListener('click', () => {
+        closeMenuConfirm();
+        this.onReturnToMenu?.();
+      });
+    }
+    if (menuConfirmModal) {
+      menuConfirmModal.addEventListener('click', (e) => {
+        if (e.target === menuConfirmModal) closeMenuConfirm();
+      });
+      window.addEventListener('keydown', (e) => {
+        if (!this.menuConfirmOpen) return;
+        if (e.key === 'Escape') closeMenuConfirm();
+      });
+    }
+
     if (closeResultBtn) {
       closeResultBtn.addEventListener('click', () => {
         const modal = document.getElementById('result-modal');
         if (modal) {
           modal.classList.add('hidden');
         }
-      });
-    }
-
-    // 開発者モードのトグル
-    if (devModeToggle) {
-      devModeToggle.addEventListener('click', () => {
-        this.toggleDevMode();
-      });
-    }
-
-    // 開発者モードの設定適用
-    if (devApplyBtn) {
-      devApplyBtn.addEventListener('click', () => {
-        this.applyDevSettings();
       });
     }
 
@@ -344,230 +635,6 @@ class GameUI {
       this.currentPlayer = 'A';
       this.updateCardTargets();
       this.updateUI();
-    } else if (playerId === 'B' && !this.playerBIsCPU && !this.playerBDecided) {
-      this.playerBSelectedCardId = cardId;
-      this.playerBSelectedCardIndex = cardIndex;
-      this.playerBSelectedPosition = null;
-      this.hoveredPosition = null;
-      // プレイヤーBのターンに切り替え（カード選択時）
-      this.currentPlayer = 'B';
-      this.updateCardTargets();
-      this.updateUI();
-    }
-  }
-
-  private toggleDevMode(): void {
-    this.devModeEnabled = !this.devModeEnabled;
-    
-    const devPanel = document.getElementById('dev-mode-panel');
-    const devToggle = document.getElementById('dev-mode-toggle');
-    
-    if (devPanel) {
-      if (this.devModeEnabled) {
-        devPanel.classList.remove('hidden');
-        // 開発者モードが有効になったときにカードセレクターを初期化
-        this.initializeDevCardSelector();
-      } else {
-        devPanel.classList.add('hidden');
-      }
-    }
-    
-    
-    if (devToggle) {
-      if (this.devModeEnabled) {
-        devToggle.textContent = '🔧 開発者モード（ON）';
-        devToggle.classList.add('active');
-      } else {
-        devToggle.textContent = '🔧 開発者モード';
-        devToggle.classList.remove('active');
-      }
-    }
-  }
-  
-  private initializeDevCardSelector(): void {
-    // カードセレクターを初期化
-    const cardSelector = document.getElementById('dev-card-selector') as HTMLSelectElement;
-    if (!cardSelector) return;
-    
-    // 既存のイベントリスナーを削除
-    const newCardSelector = cardSelector.cloneNode(true) as HTMLSelectElement;
-    cardSelector.parentNode?.replaceChild(newCardSelector, cardSelector);
-    
-    // 全てのカードを取得
-    const allCards = CardFactory.createAllCards();
-    
-    // セレクターをクリア
-    newCardSelector.innerHTML = '<option value="">カードを選択してください</option>';
-    
-    // カードをソートして追加
-    // 色カード（Cxx）、強化カード（Fxx）、特殊カード（Sxx）の順番でまとめる
-    // 各カテゴリ内では番号順にソート
-    const sortedCards = [...allCards].sort((a, b) => {
-      const idA = a.getId();
-      const idB = b.getId();
-      
-      // カードの種類を判定（優先順位: 色カード > 強化カード > 特殊カード）
-      const getCardCategory = (id: string): number => {
-        if (id.startsWith('C')) return 1; // 色カード
-        if (id.startsWith('F')) return 2; // 強化カード
-        if (id.startsWith('S')) return 3; // 特殊カード
-        return 4; // その他
-      };
-      
-      const categoryA = getCardCategory(idA);
-      const categoryB = getCardCategory(idB);
-      
-      // カテゴリで比較
-      if (categoryA !== categoryB) {
-        return categoryA - categoryB;
-      }
-      
-      // 同じカテゴリなら番号で比較
-      const numA = parseInt(idA.substring(1));
-      const numB = parseInt(idB.substring(1));
-      return numA - numB;
-    });
-    
-    sortedCards.forEach(card => {
-      const option = document.createElement('option');
-      option.value = card.getId();
-      option.textContent = `${card.getName()} (${card.getId()})`;
-      newCardSelector.appendChild(option);
-    });
-    
-    // 追加ボタンのイベントリスナー（既存のものを削除してから追加）
-    const addCardBtn = document.getElementById('dev-add-card-btn');
-    if (addCardBtn) {
-      const newAddCardBtn = addCardBtn.cloneNode(true) as HTMLButtonElement;
-      addCardBtn.parentNode?.replaceChild(newAddCardBtn, addCardBtn);
-      newAddCardBtn.addEventListener('click', () => {
-        this.addDevCard();
-      });
-    }
-    
-    // 現在の設定から選択されたカードリストを復元
-    if (this.devSettings.cardIds && this.devSettings.cardIds.length > 0) {
-      this.devSelectedCards = [...this.devSettings.cardIds];
-    } else {
-      this.devSelectedCards = [];
-    }
-    
-    // 選択されたカードリストを更新
-    this.updateDevSelectedCardsList();
-  }
-  
-  private addDevCard(): void {
-    const cardSelector = document.getElementById('dev-card-selector') as HTMLSelectElement;
-    if (!cardSelector || !cardSelector.value) return;
-    
-    const cardId = cardSelector.value;
-    
-    // 総ターン数に応じた最大枚数を取得
-    const maxCards = this.devSettings.totalTurns;
-    
-    // 最大枚数まで
-    if (this.devSelectedCards.length >= maxCards) {
-      alert(`最大${maxCards}枚まで選択できます（総ターン数: ${maxCards}）`);
-      return;
-    }
-    
-    // カードを追加（同じカードを複数選択可能）
-    this.devSelectedCards.push(cardId);
-    
-    // リストを更新
-    this.updateDevSelectedCardsList();
-    
-    // セレクターをリセット
-    cardSelector.value = '';
-  }
-  
-  private updateDevSelectedCardsList(): void {
-    const listContainer = document.getElementById('dev-selected-cards-list');
-    if (!listContainer) return;
-    
-    listContainer.innerHTML = '';
-    
-    if (this.devSelectedCards.length === 0) {
-      listContainer.textContent = '選択されたカードはありません';
-      return;
-    }
-    
-    // カードIDごとにグループ化して表示
-    const cardCounts = new Map<string, number>();
-    this.devSelectedCards.forEach(cardId => {
-      cardCounts.set(cardId, (cardCounts.get(cardId) || 0) + 1);
-    });
-    
-    const cardList = document.createElement('div');
-    cardList.className = 'dev-card-list';
-    
-    cardCounts.forEach((count, cardId) => {
-      const card = CardFactory.createCardById(cardId);
-      if (!card) return;
-      
-      const cardItem = document.createElement('div');
-      cardItem.className = 'dev-card-item';
-      
-      const cardName = document.createElement('span');
-      cardName.textContent = `${card.getName()} (${cardId})${count > 1 ? ` ×${count}` : ''}`;
-      
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.textContent = '削除';
-      removeBtn.className = 'dev-remove-card-btn';
-      removeBtn.addEventListener('click', () => {
-        this.removeDevCard(cardId);
-      });
-      
-      cardItem.appendChild(cardName);
-      cardItem.appendChild(removeBtn);
-      cardList.appendChild(cardItem);
-    });
-    
-    listContainer.appendChild(cardList);
-    
-    // カウント表示（総ターン数に応じた最大枚数を表示）
-    const maxCards = this.devSettings.totalTurns;
-    const countInfo = document.createElement('div');
-    countInfo.className = 'dev-card-count';
-    countInfo.textContent = `選択中: ${this.devSelectedCards.length} / ${maxCards}枚（総ターン数: ${maxCards}）`;
-    listContainer.appendChild(countInfo);
-  }
-  
-  private removeDevCard(cardId: string): void {
-    const index = this.devSelectedCards.indexOf(cardId);
-    if (index !== -1) {
-      this.devSelectedCards.splice(index, 1);
-      this.updateDevSelectedCardsList();
-    }
-  }
-
-  private applyDevSettings(): void {
-    const boardSizeSelect = document.getElementById('dev-board-size') as HTMLSelectElement;
-    const totalTurnsInput = document.getElementById('dev-total-turns') as HTMLInputElement;
-    const playerBModeSelect = document.getElementById('dev-player-b-mode') as HTMLSelectElement;
-
-    if (boardSizeSelect && totalTurnsInput) {
-      this.devSettings.boardSize = parseInt(boardSizeSelect.value);
-      this.devSettings.totalTurns = parseInt(totalTurnsInput.value);
-      
-      // 選択されたカードIDを取得（総ターン数に応じた最大枚数まで）
-      const maxCards = this.devSettings.totalTurns;
-      if (this.devSelectedCards.length > 0) {
-        this.devSettings.cardIds = [...this.devSelectedCards].slice(0, maxCards);
-      } else {
-        this.devSettings.cardIds = null;
-      }
-      
-      // プレイヤーBのモード
-      if (playerBModeSelect) {
-        this.devSettings.playerBIsCPU = playerBModeSelect.value === 'cpu';
-      }
-      
-      // ゲームを再初期化
-      if (confirm('設定を適用してゲームを開始しますか？')) {
-        this.initializeGame();
-      }
     }
   }
 
@@ -653,11 +720,29 @@ class GameUI {
     const boardElement = document.getElementById('board');
     const columnLabelsElement = document.getElementById('board-column-labels');
     const rowLabelsElement = document.getElementById('board-row-labels');
+    const boardWrapperElement = document.getElementById('board-wrapper');
     
     if (!boardElement || !columnLabelsElement || !rowLabelsElement) return;
 
     const board = this.gameManager.getBoard();
     const size = board.getSize();
+
+    // 盤面サイズに応じて見た目を調整（5×5固定をやめる）
+    const cellSize =
+      size <= 3 ? 76 :
+      size === 4 ? 68 :
+      size === 5 ? 60 :
+      size === 6 ? 54 : 48;
+    const labelSize = Math.max(26, Math.round(cellSize * 0.5));
+    const applyVars = (el: HTMLElement) => {
+      el.style.setProperty('--board-size', String(size));
+      el.style.setProperty('--cell-size', `${cellSize}px`);
+      el.style.setProperty('--label-size', `${labelSize}px`);
+    };
+    if (boardWrapperElement) applyVars(boardWrapperElement);
+    applyVars(boardElement);
+    applyVars(columnLabelsElement);
+    applyVars(rowLabelsElement);
 
     // 現在の安定度状態を保存（DOM要素を削除する前に保存）
     const currentStabilities = new Map<string, number>();
@@ -672,7 +757,9 @@ class GameUI {
     }
 
     // 盤面のグリッド設定
-    boardElement.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+    boardElement.style.gridTemplateColumns = `repeat(${size}, ${cellSize}px)`;
+    columnLabelsElement.style.gridTemplateColumns = `repeat(${size}, ${cellSize}px)`;
+    rowLabelsElement.style.gridTemplateRows = `repeat(${size}, ${cellSize}px)`;
     boardElement.innerHTML = '';
 
     // 列番号（上）
@@ -791,29 +878,8 @@ class GameUI {
         // クリックイベント（常に設定、条件はselectPosition内でチェック）
         cellElement.addEventListener('click', (e) => {
           e.stopPropagation();
-          // 通常モード：プレイヤーAのみ
-          if (this.devSettings.playerBIsCPU) {
-            if (this.currentPlayer === 'A' && this.selectedCardId && !this.playerADecided) {
-              this.selectPosition(x, y, 'A');
-            }
-          }
-          // 開発者モード（プレイヤーBが手動の場合）
-          else {
-            // プレイヤーAのターンで、カードが選択されている場合
-            if (this.currentPlayer === 'A' && this.selectedCardId && !this.playerADecided) {
-              this.selectPosition(x, y, 'A');
-            } 
-            // プレイヤーBのターンで、カードが選択されている場合（手動モードのみ）
-            else if (this.currentPlayer === 'B' && !this.playerBIsCPU) {
-              // ダブルアクション中で1枚目のカードを決定した後、2枚目のカードを選択する場合
-              const isDoubleActionB = this.gameManager ? this.gameManager.isDoubleActionActive('B') : false;
-              const remainingB = this.gameManager ? this.gameManager.getDoubleActionRemaining('B') : 0;
-              if (isDoubleActionB && remainingB > 1 && this.doubleActionFirstCardSelected && this.playerBSelectedCardId && !this.playerBDecided) {
-                this.selectPosition(x, y, 'B');
-              } else if (this.playerBSelectedCardId && !this.playerBDecided) {
-                this.selectPosition(x, y, 'B');
-              }
-            }
+          if (this.currentPlayer === 'A' && this.selectedCardId && !this.playerADecided) {
+            this.selectPosition(x, y, 'A');
           }
         });
 
@@ -822,18 +888,8 @@ class GameUI {
         let hasSelectedCard: boolean = false;
         let hasSelectedPosition: boolean = false;
         
-        // 通常モード：プレイヤーAのみ
-        if (this.devSettings.playerBIsCPU) {
-          hasSelectedCard = activePlayer === 'A' && this.selectedCardId !== null && !this.playerADecided;
-          hasSelectedPosition = activePlayer === 'A' && this.selectedPosition !== null;
-        }
-        // 開発者モード（プレイヤーBが手動の場合）
-        else {
-          hasSelectedCard = (activePlayer === 'A' && this.selectedCardId !== null && !this.playerADecided) || 
-                           (activePlayer === 'B' && this.playerBSelectedCardId !== null && !this.playerBIsCPU && !this.playerBDecided);
-          hasSelectedPosition = (activePlayer === 'A' && this.selectedPosition !== null) || 
-                                (activePlayer === 'B' && this.playerBSelectedPosition !== null);
-        }
+        hasSelectedCard = activePlayer === 'A' && this.selectedCardId !== null && !this.playerADecided;
+        hasSelectedPosition = activePlayer === 'A' && this.selectedPosition !== null;
         
         if (hasSelectedCard && !hasSelectedPosition) {
           cellElement.style.cursor = 'pointer';
@@ -882,27 +938,501 @@ class GameUI {
     return positions;
   }
 
-  // 色カードのパターンを描画するSVGを作成
+  /** 1行に収まるようフォントサイズを調整（カード名・種別など） */
+  private fitTextOneLine(textEl: HTMLElement, maxPx: number = 36, minPx: number = 11): void {
+    const wrap = textEl.parentElement;
+    if (!wrap) return;
+    textEl.style.fontSize = `${maxPx}px`;
+    const maxW = wrap.clientWidth;
+    if (maxW <= 0) return;
+    let lo = minPx;
+    let hi = maxPx;
+    for (let i = 0; i < 22; i++) {
+      const mid = (lo + hi) / 2;
+      textEl.style.fontSize = `${mid}px`;
+      if (textEl.scrollWidth <= maxW) {
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+    textEl.style.fontSize = `${lo}px`;
+  }
+
+  private getStarFillCount(cardId: string): number {
+    if (cardId.startsWith('C')) {
+      const num = parseInt(cardId.substring(1), 10);
+      if ([1, 3, 4, 6, 7, 9, 10].includes(num)) return 1;
+      if ([11, 12, 13, 14, 15, 16, 17].includes(num)) return 2;
+      if ([21, 22, 24].includes(num)) return 3;
+      return 1;
+    }
+    if (cardId.startsWith('F')) {
+      const num = parseInt(cardId.substring(1), 10);
+      if ([1, 2, 3].includes(num)) return 1;
+      if ([4, 5, 6].includes(num)) return 2;
+      if ([7, 8, 9, 10, 11, 12, 13].includes(num)) return 3;
+      return 1;
+    }
+    if (cardId.startsWith('S')) {
+      return 1;
+    }
+    return 1;
+  }
+
+  /**
+   * 強化カード用（参考HTMLの star-container + SVG）
+   */
+  /**
+   * 色カード：特殊カードと同一レイアウト（SVGは緑系グラデ・種別枠はイロ）
+   */
+  private buildColorCardVisual(
+    visual: HTMLElement,
+    card: Card,
+    description: string,
+    turnInfo: string | null,
+    isEffectChanged: boolean
+  ): { titleEl: HTMLElement; typeTextInner: HTMLElement } {
+    const gradId = `paint0_color_${card.getId()}_${Math.random().toString(36).slice(2, 11)}`;
+    const frameFill = this.getCardTypeFrameFill('color');
+
+    const whole = document.createElement('div');
+    whole.className = 'card-whole';
+    const wholeInner = document.createElement('div');
+    wholeInner.className = 'card-whole-inner';
+    wholeInner.innerHTML = `<svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 657.963 311">
+                    <path d="M623.963 3H34C16.8792 3 3 16.8792 3 34V277C3 294.121 16.8792 308 34 308H623.963C641.083 308 654.963 294.121 654.963 277V34C654.963 16.8792 641.083 3 623.963 3Z" fill="url(#${gradId})" stroke="black" stroke-width="6" />
+                    <defs>
+                        <linearGradient gradientUnits="userSpaceOnUse" id="${gradId}" x1="60" x2="643" y1="380.5" y2="-53">
+                            <stop offset="0.719918" stop-color="#474747" />
+                            <stop offset="0.72034" stop-color="#1bbf4a" />
+                        </linearGradient>
+                    </defs>
+                </svg>`;
+    whole.appendChild(wholeInner);
+    visual.appendChild(whole);
+
+    const hLine = document.createElement('div');
+    hLine.className = 'horizontal-line';
+    hLine.innerHTML = `<div class="horizontal-line-inner">
+                <svg class="line-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 654 3">
+                    <line stroke="black" stroke-width="3" x2="654" y1="1.5" y2="1.5" />
+                </svg>
+            </div>`;
+    visual.appendChild(hLine);
+
+    const typeFrame = document.createElement('div');
+    typeFrame.className = 'card-type-frame';
+    const typeFrameInner = document.createElement('div');
+    typeFrameInner.className = 'card-type-frame-inner';
+    typeFrameInner.innerHTML = `<svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 221.422 76.8846">
+                    <path d="M193.673 1.5H2.92202L55.922 75.3846H219.922V28.5C215.607 10.7505 209.338 5.4729 193.673 1.5Z" fill="${frameFill}" stroke="black" stroke-width="3" />
+                </svg>`;
+    typeFrame.appendChild(typeFrameInner);
+    visual.appendChild(typeFrame);
+
+    const typeP = document.createElement('p');
+    typeP.className = 'special-text';
+    const typeTextInner = document.createElement('span');
+    typeTextInner.className = 'special-text-inner';
+    typeTextInner.textContent = 'イロ';
+    typeP.appendChild(typeTextInner);
+    visual.appendChild(typeP);
+
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    const headerInner = document.createElement('div');
+    headerInner.className = 'card-header-inner';
+    headerInner.innerHTML = `<svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 484.935 77">
+                    <g>
+                        <path d="M1.5 29.5V75.5H481.5H482L428.5 1.5H28.5C11.5316 7.60056 5.68163 13.7925 1.5 29.5Z" fill="#474747" />
+                        <path d="M481.5 75.5H482M482 75.5H1.5V29.5C5.68163 13.7925 11.5316 7.60056 28.5 1.5H428.5L482 75.5Z" stroke="black" stroke-width="3" />
+                    </g>
+                </svg>`;
+    header.appendChild(headerInner);
+    visual.appendChild(header);
+
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'card-name';
+    const titleP = document.createElement('p');
+    titleP.textContent = card.getName();
+    nameWrap.appendChild(titleP);
+    visual.appendChild(nameWrap);
+
+    const starN = this.getStarFillCount(card.getId());
+    const starSeq = [
+      { cls: 'star-1', filled: starN >= 1 },
+      { cls: 'star-3', filled: starN >= 2 },
+      { cls: 'star-2', filled: starN >= 3 },
+    ];
+    for (const { cls, filled } of starSeq) {
+      const sc = this.createSpecialStarIcon(filled);
+      sc.classList.add(cls);
+      visual.appendChild(sc);
+    }
+
+    const fp = document.createElement('div');
+    fp.className = 'flavor-power-button';
+    visual.appendChild(fp);
+    const fs1 = document.createElement('div');
+    fs1.className = 'flavor-side-button-1';
+    visual.appendChild(fs1);
+    const fs2 = document.createElement('div');
+    fs2.className = 'flavor-side-button-2';
+    visual.appendChild(fs2);
+
+    const vLine = document.createElement('div');
+    vLine.className = 'vertical-line-container';
+    vLine.innerHTML = `<div class="vertical-line-rotated">
+                <div class="vertical-line">
+                    <div class="vertical-line-inner">
+                        <svg class="line-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 77 6">
+                            <line stroke="black" stroke-width="6" x2="77" y1="3" y2="3" />
+                        </svg>
+                    </div>
+                </div>
+            </div>`;
+    visual.appendChild(vLine);
+
+    const descBox = document.createElement('div');
+    descBox.className = 'card-description-box';
+    visual.appendChild(descBox);
+
+    const isColorCard = card.getType() === 'color';
+    if (isColorCard) {
+      const wrap = document.createElement('div');
+      wrap.className = 'color-card-pattern-wrap';
+      wrap.appendChild(this.createColorCardPattern(card.getId()));
+      visual.appendChild(wrap);
+    } else if (turnInfo) {
+      const descP = document.createElement('p');
+      descP.className = 'description-text';
+      descP.textContent = description;
+      visual.appendChild(descP);
+      const remainP = document.createElement('p');
+      remainP.className = 'remaining-turns-text' + (isEffectChanged ? ' effect-changed' : '');
+      remainP.textContent = turnInfo;
+      visual.appendChild(remainP);
+    } else {
+      const descP = document.createElement('p');
+      descP.className = 'description-text';
+      descP.textContent = description;
+      visual.appendChild(descP);
+    }
+
+    return { titleEl: titleP, typeTextInner };
+  }
+
+  /**
+   * 強化カード：特殊カードと同一レイアウト（SVGは赤系グラデ・種別枠はキョウカ）
+   */
+  private buildFortCardVisual(
+    visual: HTMLElement,
+    card: Card,
+    description: string,
+    turnInfo: string | null,
+    isEffectChanged: boolean
+  ): { titleEl: HTMLElement; typeTextInner: HTMLElement } {
+    const gradId = `paint0_fort_${card.getId()}_${Math.random().toString(36).slice(2, 11)}`;
+
+    const whole = document.createElement('div');
+    whole.className = 'card-whole';
+    const wholeInner = document.createElement('div');
+    wholeInner.className = 'card-whole-inner';
+    wholeInner.innerHTML = `<svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 657.963 311">
+                    <path d="M623.963 3H34C16.8792 3 3 16.8792 3 34V277C3 294.121 16.8792 308 34 308H623.963C641.083 308 654.963 294.121 654.963 277V34C654.963 16.8792 641.083 3 623.963 3Z" fill="url(#${gradId})" stroke="black" stroke-width="6" />
+                    <defs>
+                        <linearGradient gradientUnits="userSpaceOnUse" id="${gradId}" x1="60" x2="643" y1="380.5" y2="-53">
+                            <stop offset="0.719918" stop-color="#474747" />
+                            <stop offset="0.72034" stop-color="#FF3134" />
+                        </linearGradient>
+                    </defs>
+                </svg>`;
+    whole.appendChild(wholeInner);
+    visual.appendChild(whole);
+
+    const hLine = document.createElement('div');
+    hLine.className = 'horizontal-line';
+    hLine.innerHTML = `<div class="horizontal-line-inner">
+                <svg class="line-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 654 3">
+                    <line stroke="black" stroke-width="3" x2="654" y1="1.5" y2="1.5" />
+                </svg>
+            </div>`;
+    visual.appendChild(hLine);
+
+    const typeFrame = document.createElement('div');
+    typeFrame.className = 'card-type-frame';
+    const typeFrameInner = document.createElement('div');
+    typeFrameInner.className = 'card-type-frame-inner';
+    typeFrameInner.innerHTML = `<svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 221.422 76.8846">
+                    <path d="M193.673 1.5H2.92202L55.922 75.3846H219.922V28.5C215.607 10.7505 209.338 5.4729 193.673 1.5Z" fill="#FF0004" stroke="black" stroke-width="3" />
+                </svg>`;
+    typeFrame.appendChild(typeFrameInner);
+    visual.appendChild(typeFrame);
+
+    const typeP = document.createElement('p');
+    typeP.className = 'special-text';
+    const typeTextInner = document.createElement('span');
+    typeTextInner.className = 'special-text-inner';
+    typeTextInner.textContent = 'キョウカ';
+    typeP.appendChild(typeTextInner);
+    visual.appendChild(typeP);
+
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    const headerInner = document.createElement('div');
+    headerInner.className = 'card-header-inner';
+    headerInner.innerHTML = `<svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 484.935 77">
+                    <g>
+                        <path d="M1.5 29.5V75.5H481.5H482L428.5 1.5H28.5C11.5316 7.60056 5.68163 13.7925 1.5 29.5Z" fill="#474747" />
+                        <path d="M481.5 75.5H482M482 75.5H1.5V29.5C5.68163 13.7925 11.5316 7.60056 28.5 1.5H428.5L482 75.5Z" stroke="black" stroke-width="3" />
+                    </g>
+                </svg>`;
+    header.appendChild(headerInner);
+    visual.appendChild(header);
+
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'card-name';
+    const titleP = document.createElement('p');
+    titleP.textContent = card.getName();
+    nameWrap.appendChild(titleP);
+    visual.appendChild(nameWrap);
+
+    const starN = this.getStarFillCount(card.getId());
+    const starSeq = [
+      { cls: 'star-1', filled: starN >= 1 },
+      { cls: 'star-3', filled: starN >= 2 },
+      { cls: 'star-2', filled: starN >= 3 },
+    ];
+    for (const { cls, filled } of starSeq) {
+      const sc = this.createSpecialStarIcon(filled);
+      sc.classList.add(cls);
+      visual.appendChild(sc);
+    }
+
+    const fp = document.createElement('div');
+    fp.className = 'flavor-power-button';
+    visual.appendChild(fp);
+    const fs1 = document.createElement('div');
+    fs1.className = 'flavor-side-button-1';
+    visual.appendChild(fs1);
+    const fs2 = document.createElement('div');
+    fs2.className = 'flavor-side-button-2';
+    visual.appendChild(fs2);
+
+    const vLine = document.createElement('div');
+    vLine.className = 'vertical-line-container';
+    vLine.innerHTML = `<div class="vertical-line-rotated">
+                <div class="vertical-line">
+                    <div class="vertical-line-inner">
+                        <svg class="line-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 77 6">
+                            <line stroke="black" stroke-width="6" x2="77" y1="3" y2="3" />
+                        </svg>
+                    </div>
+                </div>
+            </div>`;
+    visual.appendChild(vLine);
+
+    const descBox = document.createElement('div');
+    descBox.className = 'card-description-box';
+    visual.appendChild(descBox);
+
+    const descP = document.createElement('p');
+    descP.className = 'description-text';
+    descP.textContent = description;
+    visual.appendChild(descP);
+
+    if (turnInfo) {
+      const remainP = document.createElement('p');
+      remainP.className = 'remaining-turns-text' + (isEffectChanged ? ' effect-changed' : '');
+      remainP.textContent = turnInfo;
+      visual.appendChild(remainP);
+    }
+
+    return { titleEl: titleP, typeTextInner };
+  }
+
+  /**
+   * 特殊カード：参考HTML（オレンジグラデ・トクシュ・説明＋残りターン行）
+   */
+  private createSpecialStarIcon(filled: boolean): HTMLElement {
+    const wrap = document.createElement('div');
+    wrap.className = 'star-container';
+    const inner = document.createElement('div');
+    inner.className = 'star-inner';
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'star-svg');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('viewBox', '0 0 34.238 32.5623');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute(
+      'd',
+      'M20.2089 12.7471L20.4335 13.4375H31.161L23.0702 19.3154L22.4823 19.7422L22.7069 20.4336L25.7968 29.9434L17.7069 24.0664L17.119 23.6396L16.5311 24.0664L8.44031 29.9434L11.5311 20.4336L11.7557 19.7422L11.1678 19.3154L3.07702 13.4375H13.8046L14.0292 12.7471L17.119 3.23633L20.2089 12.7471Z'
+    );
+    path.setAttribute('stroke', '#F1FF2C');
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('fill', filled ? '#F1FF2C' : '#474747');
+    svg.appendChild(path);
+    inner.appendChild(svg);
+    wrap.appendChild(inner);
+    return wrap;
+  }
+
+  private buildSpecialCardVisual(
+    visual: HTMLElement,
+    card: Card,
+    description: string,
+    turnInfo: string | null,
+    isEffectChanged: boolean
+  ): { titleEl: HTMLElement; typeTextInner: HTMLElement } {
+    const gradId = `paint0_sp_${card.getId()}_${Math.random().toString(36).slice(2, 11)}`;
+
+    const whole = document.createElement('div');
+    whole.className = 'card-whole';
+    const wholeInner = document.createElement('div');
+    wholeInner.className = 'card-whole-inner';
+    wholeInner.innerHTML = `<svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 657.963 311">
+                    <path d="M623.963 3H34C16.8792 3 3 16.8792 3 34V277C3 294.121 16.8792 308 34 308H623.963C641.083 308 654.963 294.121 654.963 277V34C654.963 16.8792 641.083 3 623.963 3Z" fill="url(#${gradId})" stroke="black" stroke-width="6" />
+                    <defs>
+                        <linearGradient gradientUnits="userSpaceOnUse" id="${gradId}" x1="60" x2="643" y1="380.5" y2="-53">
+                            <stop offset="0.719918" stop-color="#474747" />
+                            <stop offset="0.72034" stop-color="#FDA43E" />
+                        </linearGradient>
+                    </defs>
+                </svg>`;
+    whole.appendChild(wholeInner);
+    visual.appendChild(whole);
+
+    const hLine = document.createElement('div');
+    hLine.className = 'horizontal-line';
+    hLine.innerHTML = `<div class="horizontal-line-inner">
+                <svg class="line-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 654 3">
+                    <line stroke="black" stroke-width="3" x2="654" y1="1.5" y2="1.5" />
+                </svg>
+            </div>`;
+    visual.appendChild(hLine);
+
+    const typeFrame = document.createElement('div');
+    typeFrame.className = 'card-type-frame';
+    const typeFrameInner = document.createElement('div');
+    typeFrameInner.className = 'card-type-frame-inner';
+    typeFrameInner.innerHTML = `<svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 221.422 76.8846">
+                    <path d="M193.673 1.5H2.92202L55.922 75.3846H219.922V28.5C215.607 10.7505 209.338 5.4729 193.673 1.5Z" fill="#FF9500" stroke="black" stroke-width="3" />
+                </svg>`;
+    typeFrame.appendChild(typeFrameInner);
+    visual.appendChild(typeFrame);
+
+    const typeP = document.createElement('p');
+    typeP.className = 'special-text';
+    const typeTextInner = document.createElement('span');
+    typeTextInner.className = 'special-text-inner';
+    typeTextInner.textContent = 'トクシュ';
+    typeP.appendChild(typeTextInner);
+    visual.appendChild(typeP);
+
+    const header = document.createElement('div');
+    header.className = 'card-header';
+    const headerInner = document.createElement('div');
+    headerInner.className = 'card-header-inner';
+    headerInner.innerHTML = `<svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 484.935 77">
+                    <g>
+                        <path d="M1.5 29.5V75.5H481.5H482L428.5 1.5H28.5C11.5316 7.60056 5.68163 13.7925 1.5 29.5Z" fill="#474747" />
+                        <path d="M481.5 75.5H482M482 75.5H1.5V29.5C5.68163 13.7925 11.5316 7.60056 28.5 1.5H428.5L482 75.5Z" stroke="black" stroke-width="3" />
+                    </g>
+                </svg>`;
+    header.appendChild(headerInner);
+    visual.appendChild(header);
+
+    const nameWrap = document.createElement('div');
+    nameWrap.className = 'card-name';
+    const titleP = document.createElement('p');
+    titleP.textContent = card.getName();
+    nameWrap.appendChild(titleP);
+    visual.appendChild(nameWrap);
+
+    const starN = this.getStarFillCount(card.getId());
+    const starSeq = [
+      { cls: 'star-1', filled: starN >= 1 },
+      { cls: 'star-3', filled: starN >= 2 },
+      { cls: 'star-2', filled: starN >= 3 },
+    ];
+    for (const { cls, filled } of starSeq) {
+      const sc = this.createSpecialStarIcon(filled);
+      sc.classList.add(cls);
+      visual.appendChild(sc);
+    }
+
+    const fp = document.createElement('div');
+    fp.className = 'flavor-power-button';
+    visual.appendChild(fp);
+    const fs1 = document.createElement('div');
+    fs1.className = 'flavor-side-button-1';
+    visual.appendChild(fs1);
+    const fs2 = document.createElement('div');
+    fs2.className = 'flavor-side-button-2';
+    visual.appendChild(fs2);
+
+    const vLine = document.createElement('div');
+    vLine.className = 'vertical-line-container';
+    vLine.innerHTML = `<div class="vertical-line-rotated">
+                <div class="vertical-line">
+                    <div class="vertical-line-inner">
+                        <svg class="line-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 77 6">
+                            <line stroke="black" stroke-width="6" x2="77" y1="3" y2="3" />
+                        </svg>
+                    </div>
+                </div>
+            </div>`;
+    visual.appendChild(vLine);
+
+    const descBox = document.createElement('div');
+    descBox.className = 'card-description-box';
+    visual.appendChild(descBox);
+
+    const descP = document.createElement('p');
+    descP.className = 'description-text';
+    descP.textContent = description;
+    visual.appendChild(descP);
+
+    if (turnInfo) {
+      const remainP = document.createElement('p');
+      remainP.className = 'remaining-turns-text' + (isEffectChanged ? ' effect-changed' : '');
+      remainP.textContent = turnInfo;
+      visual.appendChild(remainP);
+    }
+
+    return { titleEl: titleP, typeTextInner };
+  }
+
+  /**
+   * カード種別ごとに種別枠の塗り色（参考デザイン）
+   */
+  private getCardTypeFrameFill(kind: 'color' | 'fort' | 'special'): string {
+    if (kind === 'color') return '#00E050';
+    if (kind === 'fort') return '#FF0004';
+    return '#FF9500';
+  }
+
+  /**
+   * 色カードのパターンを描画するSVGを作成（黒地・蛍光グリッド）
+   */
   private createColorCardPattern(cardId: string): HTMLElement {
     const container = document.createElement('div');
     container.className = 'color-card-pattern';
-    
+
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    // カード内に収まるようにサイズを調整（5×5グリッド + パディング）
     svg.setAttribute('viewBox', '0 0 100 100');
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    svg.style.width = '100%';
-    svg.style.height = '60px'; // 固定高さでカード内に収まるように
-    svg.style.maxWidth = '100%';
-    
-    const cellSize = 14; // セルサイズをさらに小さく
-    const offset = 15; // オフセットを調整（中央寄せ）
-    const gridSize = 5; // グリッドサイズ
-    
-    // パターンに応じてマスを塗る
+
+    const cellSize = 14;
+    const offset = 15;
+    const gridSize = 5;
     const pattern = this.getColorCardPattern(cardId);
-    
-    // グリッドの背景を描画
+    const gridStroke = '#3cff00';
+    const cellBg = '#0b0c0b';
+    const fillHi = '#3cff00';
+
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -910,26 +1440,25 @@ class GameUI {
         rect.setAttribute('y', String(offset + y * cellSize));
         rect.setAttribute('width', String(cellSize - 1));
         rect.setAttribute('height', String(cellSize - 1));
-        rect.setAttribute('fill', '#f5f5f5');
-        rect.setAttribute('stroke', '#ddd');
-        rect.setAttribute('stroke-width', '0.5');
+        rect.setAttribute('fill', cellBg);
+        rect.setAttribute('stroke', gridStroke);
+        rect.setAttribute('stroke-width', '0.75');
         svg.appendChild(rect);
       }
     }
-    
-    // パターンに応じてマスを塗る
+
     for (const pos of pattern) {
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
       rect.setAttribute('x', String(offset + pos.x * cellSize));
       rect.setAttribute('y', String(offset + pos.y * cellSize));
       rect.setAttribute('width', String(cellSize - 1));
       rect.setAttribute('height', String(cellSize - 1));
-      rect.setAttribute('fill', '#667eea');
-      rect.setAttribute('stroke', '#333');
-      rect.setAttribute('stroke-width', '1');
+      rect.setAttribute('fill', fillHi);
+      rect.setAttribute('stroke', gridStroke);
+      rect.setAttribute('stroke-width', '1.25');
       svg.appendChild(rect);
     }
-    
+
     container.appendChild(svg);
     return container;
   }
@@ -1074,55 +1603,26 @@ class GameUI {
 
     // ダブルアクション中に1枚目のカードが選択されている場合、その適用範囲も表示する必要がある
     const isDoubleActionA = this.gameManager.isDoubleActionActive('A');
-    const isDoubleActionB = this.gameManager.isDoubleActionActive('B');
     const remainingA = this.gameManager.getDoubleActionRemaining('A');
-    const remainingB = this.gameManager.getDoubleActionRemaining('B');
     
     // ダブルアクション中で1枚目のカードが選択されている場合、適用範囲を表示するために処理を続行
     // remainingが1以下でも、1枚目のカードが選択されている場合は表示し続ける
-    const shouldShowFirstCard = (isDoubleActionA && remainingA >= 1 && this.doubleActionFirstSelection && activePlayer === 'A') ||
-                                (isDoubleActionB && remainingB >= 1 && this.doubleActionFirstSelection && activePlayer === 'B' && !this.playerBIsCPU);
+    const shouldShowFirstCard = (isDoubleActionA && remainingA >= 1 && this.doubleActionFirstSelection && activePlayer === 'A');
     
-    // 通常モード：プレイヤーAのみ
-    if (this.devSettings.playerBIsCPU) {
-      if (activePlayer === 'A' && (this.selectedCardId && !this.playerADecided || shouldShowFirstCard)) {
-        selectedCardId = this.selectedCardId;
-        selectedCardIndex = null; // 通常モードではインデックス不要
-        selectedPosition = this.selectedPosition;
-        playerId = 'A';
-      } else if (!shouldShowFirstCard) {
-        // 全てのcard-targetクラスを削除
-        const boardElement = document.getElementById('board');
-        if (boardElement) {
-          boardElement.querySelectorAll('.card-target').forEach(el => {
-            el.classList.remove('card-target');
-          });
-        }
-        return;
+    if (activePlayer === 'A' && (this.selectedCardId && !this.playerADecided || shouldShowFirstCard)) {
+      selectedCardId = this.selectedCardId;
+      selectedCardIndex = null; // インデックスは使用しない
+      selectedPosition = this.selectedPosition;
+      playerId = 'A';
+    } else if (!shouldShowFirstCard) {
+      // 全てのcard-targetクラスを削除
+      const boardElement = document.getElementById('board');
+      if (boardElement) {
+        boardElement.querySelectorAll('.card-target').forEach(el => {
+          el.classList.remove('card-target');
+        });
       }
-    }
-    // 開発者モード（プレイヤーBが手動の場合）
-    else {
-      if (activePlayer === 'A' && (this.selectedCardId && !this.playerADecided || shouldShowFirstCard)) {
-        selectedCardId = this.selectedCardId;
-        selectedCardIndex = null; // インデックスは使用しない
-        selectedPosition = this.selectedPosition;
-        playerId = 'A';
-      } else if (activePlayer === 'B' && ((this.playerBSelectedCardId && !this.playerBIsCPU && !this.playerBDecided) || shouldShowFirstCard)) {
-        selectedCardId = this.playerBSelectedCardId;
-        selectedCardIndex = null;
-        selectedPosition = this.playerBSelectedPosition;
-        playerId = 'B';
-      } else if (!shouldShowFirstCard) {
-        // 全てのcard-targetクラスを削除
-        const boardElement = document.getElementById('board');
-        if (boardElement) {
-          boardElement.querySelectorAll('.card-target').forEach(el => {
-            el.classList.remove('card-target');
-          });
-        }
-        return;
-      }
+      return;
     }
     
     const board = this.gameManager.getBoard();
@@ -1156,24 +1656,7 @@ class GameUI {
       }
     }
     
-    if (isDoubleActionB && remainingB >= 1 && this.doubleActionFirstSelection && activePlayer === 'B' && !this.playerBIsCPU) {
-      const playerB = this.gameManager.getPlayer('B');
-      const handB = playerB.getHand();
-      const firstCard = handB.find(c => c.getId() === this.doubleActionFirstSelection!.cardId);
-      if (firstCard) {
-        try {
-          const firstTargetPositions = firstCard.getTargetPositions(board, this.doubleActionFirstSelection.targetPosition, 'B');
-          firstTargetPositions.forEach((pos: Position) => {
-            const cellElement = boardElement.querySelector(`[data-x="${pos.x}"][data-y="${pos.y}"]`);
-            if (cellElement) {
-              cellElement.classList.add('card-target');
-            }
-          });
-        } catch (e) {
-          // エラーは無視
-        }
-      }
-    }
+    // プレイヤーBはCPUのみのため、手動選択の適用範囲表示は不要
 
     // 選択されたカードがある場合、その適用範囲を表示
     if (selectedCardId) {
@@ -1383,171 +1866,115 @@ class GameUI {
     sortedHand.forEach(card => {
       const cardElement = document.createElement('div');
       cardElement.className = 'card';
+      const cardIdForType = card.getId();
+
+      if (cardIdForType.startsWith('C')) {
+        cardElement.classList.add('card--color');
+      } else if (cardIdForType.startsWith('F')) {
+        cardElement.classList.add('card--fort');
+      } else {
+        cardElement.classList.add('card--special');
+      }
+
       if (usedCards.has(card.getId())) {
         cardElement.classList.add('used');
       }
-      // 選択状態を表示
-      // 通常モード：プレイヤーAのみ、currentPlayerチェック
-      if (this.devSettings.playerBIsCPU) {
-        if (playerId === 'A' && this.selectedCardId === card.getId() && this.currentPlayer === playerId) {
-          cardElement.classList.add('selected');
-        }
-      }
-      // 開発者モード（プレイヤーBが手動の場合）
-      else {
-        if (playerId === 'A' && this.selectedCardId === card.getId() && !this.playerADecided) {
-          cardElement.classList.add('selected');
-        } else if (playerId === 'B' && this.playerBSelectedCardId === card.getId() && !this.playerBDecided && !this.playerBIsCPU) {
-          cardElement.classList.add('selected');
-        }
+      if (playerId === 'A' && this.selectedCardId === card.getId() && this.currentPlayer === playerId) {
+        cardElement.classList.add('selected');
       }
 
-      const header = document.createElement('div');
-      header.className = 'card-header';
+      const kind: 'color' | 'fort' | 'special' = cardIdForType.startsWith('C')
+        ? 'color'
+        : cardIdForType.startsWith('F')
+          ? 'fort'
+          : 'special';
 
-      const idSpan = document.createElement('span');
-      idSpan.className = 'card-id';
-      idSpan.textContent = card.getId();
-
-      const typeSpan = document.createElement('span');
-      // カードの種類を判定して表示
-      const cardIdForType = card.getId();
-      let typeText = '特殊';
-      let typeClass = 'special';
-      if (cardIdForType.startsWith('C')) {
-        typeText = '色';
-        typeClass = 'color';
-      } else if (cardIdForType.startsWith('F')) {
-        typeText = '強化';
-        typeClass = 'fort';
-      }
-      typeSpan.className = `card-type ${typeClass}`;
-      typeSpan.textContent = typeText;
-
-      // カードの強さ（★）を表示
-      const strengthSpan = document.createElement('span');
-      strengthSpan.className = 'card-strength';
-      let strengthText = '';
-      if (cardIdForType.startsWith('C')) {
-        const num = parseInt(cardIdForType.substring(1));
-        // 色カードの強さ
-        if ([1, 3, 4, 6, 7, 9, 10].includes(num)) {
-          strengthText = '★☆☆';
-        } else if ([11, 12, 13, 14, 15, 16, 17].includes(num)) {
-          strengthText = '★★☆';
-        } else if ([21, 22, 24].includes(num)) {
-          strengthText = '★★★';
-        }
-      } else if (cardIdForType.startsWith('F')) {
-        const num = parseInt(cardIdForType.substring(1));
-        // 強化カードの強さ
-        if ([1, 2, 3].includes(num)) {
-          strengthText = '★☆☆';
-        } else if ([4, 5, 6].includes(num)) {
-          strengthText = '★★☆';
-        } else if ([7, 8, 9, 10, 11, 12, 13].includes(num)) {
-          strengthText = '★★★';
-        }
-      }
-      if (strengthText) {
-        strengthSpan.textContent = strengthText;
-        header.appendChild(strengthSpan);
-      }
-
-      header.appendChild(idSpan);
-      header.appendChild(typeSpan);
-
-      const nameDiv = document.createElement('div');
-      nameDiv.className = 'card-name';
-      nameDiv.textContent = card.getName();
-
-      const descDiv = document.createElement('div');
-      descDiv.className = 'card-description';
-      
-      // 色カードの場合は図で表示、それ以外はテキストで表示
-      const isColorCard = card.getType() === 'color';
       let description = card.getDescription();
       let turnInfo: string | null = null;
       let isEffectChanged = false;
-      
+
       if (this.gameManager) {
         const currentTurn = this.gameManager.getCurrentTurn();
         const totalTurns = this.gameManager.getTotalTurns();
         const remainingTurns = this.gameManager.getRemainingTurns();
         const cardId = card.getId();
-        
+
         if (cardId === 'S01') {
-          // S01: リバーサル・フィールド
-          // 有効ターン数 = 全ターン数 - 3
-          // 有効ターン数まで: 全反転効果
-          // それ以降: C01と同じ効果
           const effectiveTurns = totalTurns - 3;
           if (currentTurn <= effectiveTurns) {
             const turnsUntilChange = effectiveTurns + 1 - currentTurn;
-            turnInfo = `【全反転効果】残り${turnsUntilChange}ターンで効果切替`;
+            turnInfo = `のこり${turnsUntilChange}ターンでこうかぎれ`;
             description = '使用時点の盤面を記録し、有効ターン内なら全マスの色ポイント符号を反転';
           } else {
             isEffectChanged = true;
             description = '任意のマス1つの色ポイントを+1（C01：単点塗りと同じ効果）';
-            turnInfo = '【効果切替済み】C01と同じ効果';
+            turnInfo = 'こうかがきれました';
           }
         } else if (cardId === 'S09') {
-          // S09: ラストフォートレス
-          // 残り4ターン以上: 早期使用モード
-          // 残り3ターン以内: 覚醒状態
           if (remainingTurns >= 4) {
             const turnsUntilChange = remainingTurns - 3;
-            turnInfo = `【早期使用モード】残り${turnsUntilChange}ターンで覚醒`;
+            turnInfo = `のこり${turnsUntilChange}ターンでかくせい`;
             description = '自色連結領域を対象。ランダム1〜3マス+1';
           } else {
             isEffectChanged = true;
-            turnInfo = '【覚醒状態】領域を要塞化し、他をリセット';
+            turnInfo = 'かくせいしました';
             description = '自色連結領域を対象。領域内の自色マスを2倍、領域外の自色マスをリセット';
           }
         } else if (cardId === 'S04') {
-          // S04: ダブルアクション
-          // S04を除く残り手札の色カードが1枚以下の場合、C01と同じ効果になる
-          const player = this.gameManager.getPlayer(playerId);
-          const hand = player.getHand();
-          const remainingColorCards = hand.filter(c => {
+          const pl = this.gameManager.getPlayer(playerId);
+          const handList = pl.getHand();
+          const remainingColorCards = handList.filter(c => {
             const id = c.getId();
-            // 色カードはCxx（Fxxは強化カードなので除外）
             return id !== 'S04' && id.startsWith('C');
           });
-          
+
           if (remainingColorCards.length <= 1) {
-            // C01と同じ説明に変更
             description = '任意のマス1つの色ポイントを+1';
             isEffectChanged = true;
           }
         }
       }
-      
-      // 色カードの場合は図で表示、それ以外はテキストで表示
-      if (isColorCard) {
-        // 色カードのパターンを描画
-        const patternDiv = this.createColorCardPattern(card.getId());
-        descDiv.appendChild(patternDiv);
-        // マウスホバー時に元の説明文を表示
-        descDiv.title = description;
+
+      const visual = document.createElement('div');
+      visual.className = 'card-visual';
+
+      let titleSpan: HTMLElement;
+      let typeTextInner: HTMLElement;
+
+      if (kind === 'fort') {
+        const built = this.buildFortCardVisual(visual, card, description, turnInfo, isEffectChanged);
+        titleSpan = built.titleEl;
+        typeTextInner = built.typeTextInner;
+        if (isEffectChanged) {
+          cardElement.classList.add('effect-changed');
+        }
+        cardElement.title = `${card.getName()} (${card.getId()})\n${description}`;
+      } else if (kind === 'special') {
+        const built = this.buildSpecialCardVisual(visual, card, description, turnInfo, isEffectChanged);
+        titleSpan = built.titleEl;
+        typeTextInner = built.typeTextInner;
+        if (isEffectChanged) {
+          cardElement.classList.add('effect-changed');
+        }
         cardElement.title = `${card.getName()} (${card.getId()})\n${description}`;
       } else {
-        // 強化カード・特殊カードはテキストで表示
-        if (turnInfo) {
-          descDiv.innerHTML = `<div class="card-desc-main">${description}</div><div class="card-turn-info ${isEffectChanged ? 'effect-changed' : ''}">${turnInfo}</div>`;
-        } else {
-          descDiv.textContent = description;
+        const built = this.buildColorCardVisual(visual, card, description, turnInfo, isEffectChanged);
+        titleSpan = built.titleEl;
+        typeTextInner = built.typeTextInner;
+        if (isEffectChanged) {
+          cardElement.classList.add('effect-changed');
         }
-      }
-      
-      // 効果が切り替わった場合、カードに視覚的なマークを追加
-      if (isEffectChanged) {
-        cardElement.classList.add('effect-changed');
+        cardElement.title = `${card.getName()} (${card.getId()})\n${description}`;
       }
 
-      cardElement.appendChild(header);
-      cardElement.appendChild(nameDiv);
-      cardElement.appendChild(descDiv);
+      cardElement.appendChild(visual);
+
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          this.fitTextOneLine(titleSpan, 20, 11);
+          this.fitTextOneLine(typeTextInner, 32, 12);
+        });
+      });
 
       // ダブルアクション中は特殊カードと強化カードを選択不可
       const isDoubleActionActive = this.gameManager ? this.gameManager.isDoubleActionActive(playerId) : false;
@@ -1556,6 +1983,12 @@ class GameUI {
       // 強化カードかどうかを判定（Fxxで始まるID）
       const cardIdForCheck = card.getId();
       const isFortCard = cardIdForCheck.startsWith('F');
+      if (isSpecialCard) {
+        cardElement.classList.add('is-special');
+      }
+      if (isFortCard) {
+        cardElement.classList.add('is-fort');
+      }
       
       // スキップフラグをチェック
       const isSkipped = this.gameManager ? this.gameManager.isSkipNextTurn(playerId) : false;
@@ -1575,24 +2008,12 @@ class GameUI {
       
       if (isDisabled) {
         cardElement.classList.add('disabled');
-        cardElement.style.opacity = '0.5';
-        cardElement.style.cursor = 'not-allowed';
       }
 
       // クリックイベント
-      // 通常モード：プレイヤーAのみ、currentPlayerチェック
-      if (this.devSettings.playerBIsCPU) {
-        if (this.currentPlayer === playerId && !usedCards.has(card.getId()) && !isDisabled) {
-          cardElement.addEventListener('click', () => this.selectCard(card.getId(), playerId));
-        }
-      }
-      // 開発者モード（プレイヤーBが手動の場合）
-      else {
-        if (playerId === 'A' && !usedCards.has(card.getId()) && !this.playerADecided && !isDisabled) {
-          cardElement.addEventListener('click', () => this.selectCard(card.getId(), playerId));
-        } else if (playerId === 'B' && !this.playerBIsCPU && !usedCards.has(card.getId()) && !this.playerBDecided && !isDisabled) {
-          cardElement.addEventListener('click', () => this.selectCard(card.getId(), playerId));
-        }
+      // プレイヤーAのみ操作可能
+      if (playerId === 'A' && this.currentPlayer === playerId && !usedCards.has(card.getId()) && !isDisabled) {
+        cardElement.addEventListener('click', () => this.selectCard(card.getId(), playerId));
       }
 
       container.appendChild(cardElement);
@@ -1778,48 +2199,18 @@ class GameUI {
       const state = this.gameManager.getState();
       const activePlayer = this.currentPlayer;
       const isDoubleActionA = this.gameManager.isDoubleActionActive('A');
-      const isDoubleActionB = this.gameManager.isDoubleActionActive('B');
       const remainingA = this.gameManager.getDoubleActionRemaining('A');
-      const remainingB = this.gameManager.getDoubleActionRemaining('B');
       
       let canResolve = false;
-      // 通常モード：プレイヤーAのみ
-      if (this.devSettings.playerBIsCPU) {
-        const playerAReady = this.selectedCardId !== null && this.selectedPosition !== null;
-        canResolve = playerAReady && state === 'selecting' && !this.playerADecided;
-        
-        // ダブルアクション中で1枚目のカードが未決定の場合、「次のカードを選択する」に変更
-        if (isDoubleActionA && remainingA > 1 && !this.doubleActionFirstCardSelected) {
-          resolveBtn.textContent = '次のカードを選択する';
-        } else {
-          resolveBtn.textContent = '決定';
-        }
-      }
-      // 開発者モード（プレイヤーBが手動の場合）
-      else {
-        if (activePlayer === 'A') {
-          const playerAReady = this.selectedCardId !== null && this.selectedPosition !== null;
-          canResolve = playerAReady && state === 'selecting' && !this.playerADecided;
-          
-          // ダブルアクション中で1枚目のカードが未決定の場合、「次のカードを選択する」に変更
-          if (isDoubleActionA && remainingA > 1 && !this.doubleActionFirstCardSelected) {
-            resolveBtn.textContent = '次のカードを選択する';
-          } else {
-            resolveBtn.textContent = '決定';
-          }
-        } else if (activePlayer === 'B' && !this.playerBIsCPU) {
-          const playerBReady = this.playerBSelectedCardId !== null && this.playerBSelectedPosition !== null;
-          canResolve = playerBReady && state === 'selecting' && !this.playerBDecided;
-          
-          // ダブルアクション中で1枚目のカードが未決定の場合、「次のカードを選択する」に変更
-          if (isDoubleActionB && remainingB > 1 && !this.doubleActionFirstCardSelected) {
-            resolveBtn.textContent = '次のカードを選択する';
-          } else {
-            resolveBtn.textContent = '決定（プレイヤーB）';
-          }
-        } else {
-          resolveBtn.textContent = '決定';
-        }
+      // プレイヤーAのみ
+      const playerAReady = this.selectedCardId !== null && this.selectedPosition !== null;
+      canResolve = activePlayer === 'A' && playerAReady && state === 'selecting' && !this.playerADecided;
+      
+      // ダブルアクション中で1枚目のカードが未決定の場合、「次のカードを選択する」に変更
+      if (isDoubleActionA && remainingA > 1 && !this.doubleActionFirstCardSelected) {
+        resolveBtn.textContent = '次のカードを選択する';
+      } else {
+        resolveBtn.textContent = '決定';
       }
       
       resolveBtn.disabled = !canResolve || this.gameManager.areBothPlayersReady();
@@ -1829,15 +2220,12 @@ class GameUI {
     const retryBtn = document.getElementById('retry-btn');
     if (retryBtn) {
       const isDoubleActionA = this.gameManager.isDoubleActionActive('A');
-      const isDoubleActionB = this.gameManager.isDoubleActionActive('B');
       const remainingA = this.gameManager.getDoubleActionRemaining('A');
-      const remainingB = this.gameManager.getDoubleActionRemaining('B');
       const activePlayer = this.currentPlayer;
       
       // 1枚目のカードを決定した後、2枚目のカードを選択中の場合に表示
       // remaining >= 1 の時（1枚目を決定した後、2枚目を決定するまで）は「選びなおす」ボタンを表示
-      const showRetry = (isDoubleActionA && remainingA >= 1 && this.doubleActionFirstCardSelected && activePlayer === 'A') ||
-                        (isDoubleActionB && remainingB >= 1 && this.doubleActionFirstCardSelected && activePlayer === 'B' && !this.playerBIsCPU);
+      const showRetry = (isDoubleActionA && remainingA >= 1 && this.doubleActionFirstCardSelected && activePlayer === 'A');
       
       if (showRetry) {
         retryBtn.classList.remove('hidden');
@@ -2948,10 +3336,270 @@ class GameUI {
 
 }
 
+type ScreenMode = 'story' | 'free' | 'tutorial';
+
+class ScreenFlow {
+  private root: HTMLElement;
+  private isTransitioning = false;
+  private onStart: (mode: ScreenMode, settings?: GameStartSettings) => void;
+
+  constructor(root: HTMLElement, onStart: (mode: ScreenMode, settings?: GameStartSettings) => void) {
+    this.root = root;
+    this.onStart = onStart;
+  }
+
+  showTitle(): void {
+    this.root.innerHTML = `
+      <div class="screen" data-screen="title">
+        <div class="screen-inner">
+          <div class="title-logo">For Card</div>
+          <div class="title-sub">STRATEGY CARD GAME</div>
+          <div class="press-any">press any button</div>
+          <div class="hint-row">クリック / タップ / キー入力で進む</div>
+        </div>
+      </div>
+    `;
+
+    const proceed = () => {
+      if (this.isTransitioning) return;
+      this.isTransitioning = true;
+      const screen = this.root.querySelector('.screen') as HTMLElement | null;
+      if (screen) screen.classList.add('screen-exit');
+      window.setTimeout(() => {
+        this.isTransitioning = false;
+        this.showMenu();
+      }, 520);
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      // 修飾キー単体は無視
+      if (e.key === 'Shift' || e.key === 'Alt' || e.key === 'Control' || e.key === 'Meta') return;
+      proceed();
+    };
+
+    const onPointerDown = () => proceed();
+
+    window.addEventListener('keydown', onKeyDown, { once: true });
+    this.root.addEventListener('pointerdown', onPointerDown, { once: true });
+  }
+
+  showMenu(): void {
+    this.root.innerHTML = `
+      <div class="screen" data-screen="menu">
+        <div class="screen-inner">
+          <div class="menu-title">MAIN MENU</div>
+          <div class="menu-grid" role="menu" aria-label="メインメニュー">
+            <button class="mode-card bg-story" data-mode="story" type="button">
+              <div class="mode-chip">20 STAGES</div>
+              <div class="mode-title">ストーリーモード</div>
+              <div class="mode-desc">
+                CPUと戦いながら全20ステージを攻略。<br/>
+                少しずつカードや盤面が増え、CPUも賢くなる。
+              </div>
+            </button>
+
+            <div class="menu-col">
+              <button class="mode-card bg-free" data-mode="free" type="button">
+                <div class="mode-chip">CUSTOM</div>
+                <div class="mode-title">フリーモード</div>
+                <div class="mode-desc">
+                  CPUの強さ / 盤面 / ターン / 使用カードを<br/>
+                  自由に選んで対戦できる。
+                </div>
+              </button>
+
+              <button class="mode-card bg-tutorial" data-mode="tutorial" type="button">
+                <div class="mode-chip">LEARN</div>
+                <div class="mode-title">チュートリアル</div>
+                <div class="mode-desc">
+                  ルールを段階的に学ぶモード。<br/>
+                  最後は 3×3 / 5ターン の試合でクリア！
+                </div>
+              </button>
+            </div>
+          </div>
+          <div class="hint-row">Enter / クリックで開始（Tabでフォーカス移動）</div>
+        </div>
+      </div>
+    `;
+
+    const firstBtn = this.root.querySelector<HTMLButtonElement>('button[data-mode="story"]');
+    firstBtn?.focus();
+
+    const onActivate = (mode: ScreenMode) => {
+      if (this.isTransitioning) return;
+      this.isTransitioning = true;
+      const screen = this.root.querySelector('.screen') as HTMLElement | null;
+      if (screen) screen.classList.add('screen-exit');
+      window.setTimeout(() => {
+        if (mode === 'free') {
+          this.isTransitioning = false;
+          this.showFreeSetup();
+          return;
+        }
+        this.root.innerHTML = '';
+        this.onStart(mode);
+      }, 520);
+    };
+
+    this.root.querySelectorAll<HTMLButtonElement>('button[data-mode]').forEach(btn => {
+      btn.addEventListener('click', () => onActivate(btn.dataset.mode as ScreenMode));
+      btn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onActivate(btn.dataset.mode as ScreenMode);
+        }
+      });
+    });
+  }
+
+  private showFreeSetup(): void {
+    const defaults = { boardSize: 5, totalTurns: 15, cpuDifficulty: 'normal' as const };
+    const allCards = CardFactory.createAllCards();
+    const sortedCards = [...allCards].sort((a, b) => {
+      const idA = a.getId();
+      const idB = b.getId();
+      const cat = (id: string) => (id.startsWith('C') ? 1 : id.startsWith('F') ? 2 : id.startsWith('S') ? 3 : 4);
+      const ca = cat(idA);
+      const cb = cat(idB);
+      if (ca !== cb) return ca - cb;
+      const na = parseInt(idA.substring(1));
+      const nb = parseInt(idB.substring(1));
+      return na - nb;
+    });
+
+    const selected: string[] = [];
+
+    this.root.innerHTML = `
+      <div class="screen" data-screen="free-setup">
+        <div class="setup-panel">
+          <div class="setup-title">FREE MODE</div>
+          <div class="setup-sub">対戦条件をカスタマイズしてから開始します</div>
+
+          <div class="setup-grid">
+            <div class="setup-field">
+              <div class="setup-label">CPU strength</div>
+              <select id="free-cpu">
+                <option value="easy">Easy</option>
+                <option value="normal" selected>Normal</option>
+                <option value="hard">Hard</option>
+              </select>
+            </div>
+            <div class="setup-field">
+              <div class="setup-label">Board size</div>
+              <select id="free-board">
+                <option value="3">3×3</option>
+                <option value="4">4×4</option>
+                <option value="5" selected>5×5</option>
+                <option value="6">6×6</option>
+                <option value="7">7×7</option>
+              </select>
+            </div>
+            <div class="setup-field">
+              <div class="setup-label">Turns</div>
+              <input id="free-turns" type="number" min="1" max="30" value="15" />
+            </div>
+
+            <div class="setup-field setup-cards">
+              <div class="setup-label">Cards (optional)</div>
+              <div class="setup-row">
+                <select id="free-card-select">
+                  <option value="">カードを選択（任意）</option>
+                </select>
+                <button class="setup-add-btn" id="free-card-add" type="button">追加</button>
+              </div>
+              <div class="setup-selected" id="free-selected"></div>
+              <div class="setup-help">
+                選択したカードが <b>ターン数より少ない</b> 場合は、足りない分をランダムで補完します。<br/>
+                何も選ばなければ、すべてランダムデッキになります。
+              </div>
+            </div>
+          </div>
+
+          <div class="setup-actions">
+            <button class="setup-secondary" id="free-back" type="button">戻る</button>
+            <button class="setup-primary" id="free-start" type="button">この設定で開始</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const cardSelect = this.root.querySelector<HTMLSelectElement>('#free-card-select')!;
+    for (const card of sortedCards) {
+      const opt = document.createElement('option');
+      opt.value = card.getId();
+      opt.textContent = `${card.getName()} (${card.getId()})`;
+      cardSelect.appendChild(opt);
+    }
+
+    const selectedEl = this.root.querySelector<HTMLElement>('#free-selected')!;
+    const renderSelected = () => {
+      if (selected.length === 0) {
+        selectedEl.innerHTML = '<div class="setup-help">選択されたカードはありません</div>';
+        return;
+      }
+      selectedEl.innerHTML = '';
+      selected.forEach((id, idx) => {
+        const row = document.createElement('div');
+        row.className = 'setup-selected-item';
+        row.innerHTML = `<span>${id}</span>`;
+        const rm = document.createElement('button');
+        rm.className = 'setup-remove-btn';
+        rm.type = 'button';
+        rm.textContent = '削除';
+        rm.addEventListener('click', () => {
+          selected.splice(idx, 1);
+          renderSelected();
+        });
+        row.appendChild(rm);
+        selectedEl.appendChild(row);
+      });
+    };
+    renderSelected();
+
+    const addBtn = this.root.querySelector<HTMLButtonElement>('#free-card-add')!;
+    addBtn.addEventListener('click', () => {
+      if (!cardSelect.value) return;
+      selected.push(cardSelect.value);
+      cardSelect.value = '';
+      renderSelected();
+    });
+
+    this.root.querySelector<HTMLButtonElement>('#free-back')!.addEventListener('click', () => {
+      this.showMenu();
+    });
+
+    this.root.querySelector<HTMLButtonElement>('#free-start')!.addEventListener('click', () => {
+      const cpuDifficulty = (this.root.querySelector<HTMLSelectElement>('#free-cpu')!.value || defaults.cpuDifficulty) as
+        | 'easy'
+        | 'normal'
+        | 'hard';
+      const boardSize = parseInt(this.root.querySelector<HTMLSelectElement>('#free-board')!.value || `${defaults.boardSize}`);
+      const totalTurns = parseInt((this.root.querySelector<HTMLInputElement>('#free-turns')!.value || `${defaults.totalTurns}`));
+
+      const settings: GameStartSettings = {
+        boardSize,
+        totalTurns,
+        cpuDifficulty,
+        playerBIsCPU: true,
+        cardIds: selected.length > 0 ? [...selected] : null
+      };
+
+      if (this.isTransitioning) return;
+      this.isTransitioning = true;
+      const screen = this.root.querySelector('.screen') as HTMLElement | null;
+      if (screen) screen.classList.add('screen-exit');
+      window.setTimeout(() => {
+        this.isTransitioning = false;
+        this.root.innerHTML = '';
+        this.onStart('free', settings);
+      }, 520);
+    });
+  }
+}
+
 // ゲーム開始
 document.addEventListener('DOMContentLoaded', () => {
-  const gameUI = new GameUI();
-  
   // シミュレーターをグローバルに公開（開発者用）
   if (typeof window !== 'undefined') {
     (window as any).runSimulator = async () => {
@@ -2970,4 +3618,43 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('  - runSimulator() : すべてのカード効果を検証');
     console.log('  - testCard("S05") : 特定のカードを検証');
   }
+
+  const app = document.getElementById('app');
+  app?.classList.add('game-hidden');
+
+  const screenRoot = document.getElementById('screen-root') ?? (() => {
+    const el = document.createElement('div');
+    el.id = 'screen-root';
+    document.body.appendChild(el);
+    return el;
+  })();
+
+  let gameUI: GameUI | null = null;
+  const flow = new ScreenFlow(screenRoot, (mode, settings) => {
+    const startSettings: GameStartSettings =
+      mode === 'tutorial'
+        ? { boardSize: 3, totalTurns: 5, playerBIsCPU: true, cpuDifficulty: 'easy' }
+        : mode === 'story'
+          ? { playerBIsCPU: true, cpuDifficulty: 'normal' }
+          : { playerBIsCPU: true, ...settings };
+
+    app?.classList.remove('game-hidden');
+
+    if (!gameUI) {
+      gameUI = new GameUI({}, {
+        onReturnToMenu: () => {
+          app?.classList.add('game-hidden');
+          flow.showMenu();
+        }
+      });
+      if (typeof window !== 'undefined') {
+        (window as any).gameUI = gameUI;
+        (window as any).screenFlow = flow;
+      }
+    }
+
+    gameUI.startNewGame(startSettings);
+  });
+
+  flow.showTitle();
 });

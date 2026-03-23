@@ -7,10 +7,28 @@ import { Scoring } from './Scoring.js';
 export class CPUPlayer {
   private player: Player;
   private playerId: PlayerId;
+  private randomPickRate: number;
+  private maxSimulationsPerCard: number | null;
 
-  constructor(player: Player, playerId: PlayerId) {
+  constructor(
+    player: Player,
+    playerId: PlayerId,
+    options: Partial<{ difficulty: 'easy' | 'normal' | 'hard' }> = {}
+  ) {
     this.player = player;
     this.playerId = playerId;
+
+    const difficulty = options.difficulty ?? 'normal';
+    if (difficulty === 'easy') {
+      this.randomPickRate = 0.55;
+      this.maxSimulationsPerCard = 10;
+    } else if (difficulty === 'hard') {
+      this.randomPickRate = 0.08;
+      this.maxSimulationsPerCard = null;
+    } else {
+      this.randomPickRate = 0.3;
+      this.maxSimulationsPerCard = null;
+    }
   }
 
   // CPUのターン: カードと位置を選択
@@ -27,8 +45,12 @@ export class CPUPlayer {
     for (const card of hand) {
       // カードが置ける位置を探す
       const positions = this.getValidPositions(board, card);
+      const effectivePositions =
+        this.maxSimulationsPerCard && positions.length > this.maxSimulationsPerCard
+          ? this.samplePositions(positions, this.maxSimulationsPerCard)
+          : positions;
 
-      for (const position of positions) {
+      for (const position of effectivePositions) {
         // この選択でスコアがどう変わるかシミュレート
         const simulatedScore = this.simulateMove(board, card, position);
         
@@ -43,8 +65,8 @@ export class CPUPlayer {
     }
 
     // ランダム要素を追加（完全に最適化されすぎないように）
-    if (Math.random() < 0.3 && hand.length > 1) {
-      // 30%の確率でランダムなカードを選ぶ
+    if (Math.random() < this.randomPickRate && hand.length > 1) {
+      // 難易度に応じた確率でランダムなカードを選ぶ
       const randomCard = hand[Math.floor(Math.random() * hand.length)];
       const validPositions = this.getValidPositions(board, randomCard);
       if (validPositions.length > 0) {
@@ -57,6 +79,19 @@ export class CPUPlayer {
     }
 
     return bestSelection || this.getRandomSelection(board, hand);
+  }
+
+  private samplePositions(positions: Position[], max: number): Position[] {
+    if (positions.length <= max) return positions;
+    const result: Position[] = [];
+    const used = new Set<number>();
+    while (result.length < max && used.size < positions.length) {
+      const idx = Math.floor(Math.random() * positions.length);
+      if (used.has(idx)) continue;
+      used.add(idx);
+      result.push(positions[idx]);
+    }
+    return result.length > 0 ? result : positions.slice(0, max);
   }
 
   // カードが置ける有効な位置を取得
