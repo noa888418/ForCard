@@ -7,7 +7,7 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>ForCard - 戦略カードゲーム</title>
-    <link rel="stylesheet" href="styles.css?v=9">
+    <link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
     <div id="screen-root"></div>
@@ -49,25 +49,25 @@
         </div>
 
         <div id="controls">
-            <button id="resolve-btn" disabled>決宁E/button>
+            <button id="resolve-btn" disabled>決定</button>
             <button id="retry-btn" class="hidden">選びなおす</button>
-            <button id="reset-btn">リセチE��</button>
-            <button id="toggle-color-points-btn" class="toggle-btn">色ポインチE 表示</button>
+            <button id="reset-btn">リセット</button>
+            <button id="toggle-color-points-btn" class="toggle-btn">色ポイント表示</button>
             <button id="main-menu-btn">メインメニュー</button>
         </div>
 
         <div id="result-modal" class="modal hidden">
             <div class="modal-content">
-                <h2>ゲーム終亁E/h2>
+                <h2>ゲーム終了</h2>
                 <div id="result-content"></div>
-                <button id="close-result-btn">閉じめE/button>
+                <button id="close-result-btn">閉じる</button>
             </div>
         </div>
 
         <div id="menu-confirm-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="menu-confirm-title">
             <div class="modal-content menu-confirm-content">
-                <h2 id="menu-confirm-title">メインメニューに戻りますか�E�E/h2>
-                <div class="menu-confirm-text">対戦中の状態�E失われます、E/div>
+                <h2 id="menu-confirm-title">メインメニューに戻りますか？</h2>
+                <div class="menu-confirm-text">対戦中の状態は失われます。</div>
                 <div class="menu-confirm-actions">
                     <button id="menu-confirm-cancel" type="button" class="setup-secondary">キャンセル</button>
                     <button id="menu-confirm-ok" type="button" class="setup-primary">OK</button>
@@ -76,7 +76,7 @@
         </div>
     </div>
 
-    <script type="module" src="dist/main.js?v=9"></script>
+    <script type="module" src="dist/main.js?v=14"></script>
 </body>
 </html>
 

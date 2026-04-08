@@ -6,7 +6,7 @@
 
 @font-face {
     font-family: "KitchenGothic";
-    src: url("public/fonts/キチE��ンゴシチE��.ttf") format("truetype");
+    src: url("public/fonts/??E??????E??.ttf") format("truetype");
     font-display: swap;
 }
 
@@ -50,18 +50,23 @@ body {
         radial-gradient(1100px 900px at 60% 90%, rgba(255, 230, 109, 0.14), transparent 60%),
         linear-gradient(135deg, var(--ui-bg-0) 0%, var(--ui-bg-1) 100%);
     min-height: 100vh;
-    padding: 20px;
+    height: 100vh;
+    padding: 12px;
     color: rgba(255,255,255,0.92);
-    overflow-x: hidden;
+    overflow: hidden;
 }
 
 #app {
-    max-width: 1400px;
+    max-width: min(1400px, calc(100vw - 24px));
+    height: calc(100vh - 24px);
     margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     transition: opacity 450ms ease, filter 450ms ease, transform 450ms ease;
 }
 
-/* 画面オーバ�Eレイ表示中はゲームUIを抑える */
+/* ??????E?????????UI???? */
 #app.game-hidden{
     opacity: 0;
     pointer-events: none;
@@ -73,7 +78,7 @@ header {
     background: rgba(255, 255, 255, 0.08);
     padding: 20px;
     border-radius: 10px;
-    margin-bottom: 20px;
+    margin-bottom: 12px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     border: 1px solid rgba(255,255,255,0.12);
     backdrop-filter: blur(10px);
@@ -96,9 +101,11 @@ header h1 {
 
 #game-container {
     display: grid;
-    grid-template-columns: 1fr 2fr 1fr;
+    grid-template-columns: 0.46fr 1.94fr 0.98fr;
     gap: 20px;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
+    flex: 1;
+    min-height: 0;
 }
 
 .player-section {
@@ -108,6 +115,10 @@ header h1 {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
     border: 1px solid rgba(255,255,255,0.12);
     backdrop-filter: blur(10px);
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .player-section h2 {
@@ -142,15 +153,20 @@ header h1 {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    max-height: 500px;
+    max-height: none;
+    min-height: 0;
+    flex: 1;
+    width: 100%;
     overflow-y: auto;
+    overflow-x: hidden;
     align-items: center;
 }
 
-/* --- 手札カード！Eigma 参老E��イアウチE/ 657ÁE10 基準を縮小表示�E�E--- */
+/* --- ??????Eigma ??E??????E/ 657?E10 ????????E?E--- */
 .card {
     position: relative;
-    width: 280px;
+    width: 100%;
+    max-width: 340px;
     flex: 0 0 auto;
     padding: 0;
     margin: 0;
@@ -188,9 +204,50 @@ header h1 {
     position: relative;
     width: 657px;
     height: 310px;
-    transform: scale(0.425);
+    transform: scale(0.5);
     transform-origin: top center;
-    margin: 0 auto -178px;
+    margin: 0 auto -155px;
+}
+
+/* CPU?????????????????????????? */
+#player-b-section .hand .card {
+    width: min(100%, 170px);
+    max-width: 170px;
+}
+
+#player-b-section .hand .card-visual {
+    transform: scale(0.27);
+    margin: 0 auto -226px;
+}
+
+#player-a-section .hand .card {
+    width: calc(100% - 10px);
+    max-width: 280px;
+}
+
+#player-a-section .hand .card-visual {
+    transform: scale(0.41);
+    margin: 0 auto -186px;
+}
+
+/* 右側カードが切れないように左寄せで表示 */
+#player-a-section .hand {
+    align-items: center;
+    padding: 0 2px 0 0;
+}
+
+#player-a-section .hand .card-visual {
+    transform-origin: top left;
+}
+
+/* CPU欄は最小表示に寄せる */
+#player-b-section {
+    padding: 14px;
+}
+
+/* 盤面を少し左へ寄せる */
+#board-container {
+    margin-left: -14px;
 }
 
 .card-whole {
@@ -205,7 +262,7 @@ header h1 {
     box-sizing: border-box;
 }
 
-/* ========== 色・強化�E特殊カード�E通レイアウト！EVG背景・区刁E��線�E種別枠・星！E========== */
+/* ========== ?????E??????E???????EVG?????E????E??????E========== */
 .card--special .card-whole, .card--color .card-whole, .card--fort .card-whole {
     border: none;
     border-radius: 0;
@@ -492,7 +549,7 @@ header h1 {
     filter: drop-shadow(0 0 8px rgba(255, 180, 0, 0.75));
 }
 
-/* 色カード：説明エリアはグリチE��パターン */
+/* ??????????????E?????? */
 .card--color .color-card-pattern-wrap {
     position: absolute;
     left: 31px;
@@ -760,6 +817,8 @@ header h1 {
     display: flex;
     flex-direction: column;
     align-items: center;
+    min-height: 0;
+    overflow: hidden;
 }
 
 #board-wrapper {
@@ -848,7 +907,7 @@ header h1 {
     color: white;
 }
 
-/* タイムボムのスタイル */
+/* ?????????? */
 .cell.time-bomb-center {
     border: 3px solid #ff5722;
     box-shadow: 0 0 10px rgba(255, 87, 34, 0.5);
@@ -914,7 +973,7 @@ header h1 {
     opacity: 1.0;
 }
 
-/* 安定度変化のアニメーション */
+/* ????????????? */
 @keyframes color-appear {
     0% {
         opacity: 0.3;
@@ -1066,8 +1125,9 @@ header h1 {
     display: flex;
     justify-content: center;
     gap: 10px;
-    margin-top: 20px;
+    margin-top: 10px;
     flex-wrap: wrap;
+    flex: 0 0 auto;
 }
 
 .hidden {
@@ -1362,7 +1422,7 @@ button:disabled {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
-/* メインメニュー戻り確認モーダル */
+/* ??????????????? */
 .menu-confirm-content{
     background: rgba(15, 22, 48, 0.92);
     color: rgba(255,255,255,0.92);
@@ -1424,7 +1484,7 @@ button:disabled {
 }
 
 #screen-root .screen::after{
-    /* ぁE��すらノイズ + 走査緁E*/
+    /* ?E??????? + ???E*/
     content:"";
     position: absolute;
     inset: 0;
@@ -1778,7 +1838,7 @@ button:disabled {
     color: var(--player-b-color-1, #f5576c);
 }
 
-/* シャチE��ル中のスコア値のスタイル */
+/* ???E?????????????? */
 #shuffling-score-a,
 #shuffling-score-b {
     animation: score-shuffle 0.1s ease-in-out infinite;
@@ -1809,7 +1869,7 @@ button:disabled {
     background: #5568d3;
 }
 
-/* スクロールバ�Eのスタイル */
+/* ???????E????? */
 .hand::-webkit-scrollbar {
     width: 8px;
 }
