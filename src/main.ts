@@ -62,6 +62,31 @@ class GameUI {
   private onReturnToMenu?: () => void;
   private menuConfirmOpen: boolean = false;
 
+  /** プレイヤーA 手札カルーセル（中央インデックス） */
+  private handCarouselCenterIndex: number = 0;
+  private lastPlayerASortedHand: Card[] = [];
+  private handCardUiIdSeed: number = 1;
+  private handCardUiIdMap: WeakMap<Card, number> = new WeakMap();
+  /** updateHands 内で手札から選択を同期したあと、盤面ハイライトをもう一度合わせる */
+  private postHandBoardRefresh: boolean = false;
+  private handDeckModalOpen: boolean = false;
+  private actionLogExpanded: boolean = false;
+
+  /** 手札円盤UI：円の中心はカラム右端（100%）。半径・弧の半開き角 — 左半円弧上に3枚 */
+  private static readonly handDiscHubLeftPct = 100;
+  /** 半径を大きくすると弧上のカード同士の距離が広がる */
+  private static readonly handDiscRadiusPx = 348;
+  /** 中央から上下への角度差（大きいほど3枚の縦方向の間隔が広い） */
+  private static readonly handDiscArcHalfStepDeg = 14.45;
+  /** カーソル位置に合わせるためのカード全体Xオフセット（負で左へ） */
+  private static readonly handDiscCardOffsetXPx = -90;
+  /** 上下カードをY方向に少し離して重なりを減らす */
+  private static readonly handDiscWingYOffsetPx = 128;
+  /** 近い上下カードをX方向に少し右へ */
+  private static readonly handDiscWingXOffsetPx = 15;
+  /** 外側上下カードをX方向にさらに右へ */
+  private static readonly handDiscOuterWingXOffsetPx = 70;
+
   // 色パターンの定義（補色の関係になるような組み合わせを多数用意）
   // 各パターンは2色のグラデーションで構成され、補色の関係になるように設計
   private colorPatterns: ColorPattern[] = [
@@ -213,6 +238,8 @@ class GameUI {
     this.selectedRotation = 0;
     this.selectedDirection = 'up';
     this.hoveredPosition = null;
+    this.handCarouselCenterIndex = 0;
+    this.lastPlayerASortedHand = [];
 
     // プレイヤーBはCPU固定（開発者モード削除）
     this.playerBIsCPU = true;
@@ -607,6 +634,48 @@ class GameUI {
         this.toggleColorPointsDisplay();
       });
     }
+
+    const handWheel = document.getElementById('hand-a-wheel');
+    if (handWheel) {
+      handWheel.addEventListener('wheel', (e) => this.onHandCarouselWheel(e as WheelEvent), { passive: false });
+    }
+
+    document.addEventListener('keydown', (e) => this.onHandCarouselKey(e));
+
+    const handDeckTrigger = document.getElementById('hand-deck-trigger');
+    if (handDeckTrigger) {
+      handDeckTrigger.addEventListener('click', () => this.openHandDeckModal());
+    }
+
+    const actionLogToggle = document.getElementById('action-log-toggle');
+    if (actionLogToggle) {
+      actionLogToggle.addEventListener('click', () => this.toggleActionLogPanel());
+    }
+
+    const handDeckModal = document.getElementById('hand-deck-modal');
+    const handDeckClose = document.getElementById('hand-deck-close');
+    const handDeckTab = document.getElementById('hand-deck-tab');
+    if (handDeckClose) {
+      handDeckClose.addEventListener('click', () => this.closeHandDeckModal());
+    }
+    if (handDeckTab) {
+      handDeckTab.addEventListener('click', () => this.closeHandDeckModal());
+    }
+    if (handDeckModal) {
+      handDeckModal.addEventListener('click', (e) => {
+        if (e.target === handDeckModal) this.closeHandDeckModal();
+      });
+    }
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && this.handDeckModalOpen) {
+        this.closeHandDeckModal();
+      }
+    });
+
+    // 画面リサイズ時も中央カードにカーソル枠を追従させる
+    window.addEventListener('resize', () => {
+      requestAnimationFrame(() => this.syncHandCursorToCenterCard());
+    });
   }
 
   private toggleColorPointsDisplay(): void {
@@ -680,6 +749,11 @@ class GameUI {
 
     this.updateBoard();
     this.updateHands();
+    if (this.postHandBoardRefresh) {
+      this.postHandBoardRefresh = false;
+      this.updateBoard();
+      this.updateCardTargets();
+    }
     this.updateGameInfo();
     this.updateScores();
     this.updateControls();
@@ -702,13 +776,13 @@ class GameUI {
     }
 
     const statusDiv = document.createElement('div');
-    statusDiv.className = 'cpu-status';
+    statusDiv.className = `cpu-status ${this.playerBDecided ? 'cpu-status--ready' : 'cpu-status--pending'}`;
+    statusDiv.title = this.playerBDecided ? 'CPU決定済み' : 'CPU選択中';
+    statusDiv.setAttribute('aria-label', statusDiv.title);
     if (this.playerBDecided) {
-      statusDiv.textContent = '✅ CPU決定済み';
       statusDiv.style.color = '#4caf50';
       statusDiv.style.fontWeight = 'bold';
     } else {
-      statusDiv.textContent = '⏳ CPU選択中...';
       statusDiv.style.color = '#ff9800';
     }
     cpuInfo.insertBefore(statusDiv, cpuInfo.firstChild);
@@ -1801,12 +1875,714 @@ class GameUI {
     }
   }
 
+  private prepareSortedHandForPlayer(playerId: PlayerId): { sortedHand: Card[]; usedCards: Set<CardId> } | null {
+    if (!this.gameManager) return null;
+    const player = this.gameManager.getPlayer(playerId);
+    let hand = player.getHand();
+    const usedCards = player.getUsedCards();
+
+    const isDoubleActionActive = this.gameManager.isDoubleActionActive(playerId);
+    const remainingDA = this.gameManager.getDoubleActionRemaining(playerId);
+    if (isDoubleActionActive && remainingDA >= 1 && this.doubleActionFirstSelection) {
+      const firstCardId = this.doubleActionFirstSelection.cardId;
+      if (usedCards.has(firstCardId)) {
+        const firstCard = player.getCardById(firstCardId);
+        if (firstCard && !hand.find(c => c.getId() === firstCardId)) {
+          hand = [...hand, firstCard];
+        }
+      }
+    }
+
+    const sortedHand = [...hand].sort((a, b) => {
+      const idA = a.getId();
+      const idB = b.getId();
+      const getCardCategory = (id: string): number => {
+        if (id.startsWith('S')) return 3;
+        if (id.startsWith('F')) return 2;
+        if (id.startsWith('C')) return 1;
+        return 4;
+      };
+      const categoryA = getCardCategory(idA);
+      const categoryB = getCardCategory(idB);
+      if (categoryA !== categoryB) {
+        return categoryA - categoryB;
+      }
+      const numA = parseInt(idA.substring(1));
+      const numB = parseInt(idB.substring(1));
+      return numA - numB;
+    });
+
+    return { sortedHand, usedCards };
+  }
+
+  private isPlayerHandCardPickDisabled(card: Card, playerId: PlayerId): boolean {
+    if (!this.gameManager) return true;
+    const isDoubleActionActive = this.gameManager.isDoubleActionActive(playerId);
+    const remaining = this.gameManager.getDoubleActionRemaining(playerId);
+    const isSpecialCard = card.getType() === 'special';
+    const isFortCard = card.getId().startsWith('F');
+    const isSkipped = this.gameManager.isSkipNextTurn(playerId);
+    let isFirstCardUsed = false;
+    if (isDoubleActionActive && remaining >= 1 && this.doubleActionFirstSelection) {
+      if (playerId === 'A' && this.doubleActionFirstSelection.cardId === card.getId()) {
+        isFirstCardUsed = true;
+      } else if (playerId === 'B' && this.doubleActionFirstSelection.cardId === card.getId()) {
+        isFirstCardUsed = true;
+      }
+    }
+    return isSkipped || (isDoubleActionActive && (isSpecialCard || isFortCard)) || isFirstCardUsed;
+  }
+
+  private buildPlayerHandCardElement(
+    card: Card,
+    playerId: PlayerId,
+    usedCards: Set<CardId>,
+    options?: { suppressPickClick?: boolean }
+  ): HTMLElement {
+    const cardElement = document.createElement('div');
+    cardElement.className = 'card';
+    cardElement.dataset.carouselCardUid = this.getHandCardUiId(card);
+    const cardIdForType = card.getId();
+
+    if (cardIdForType.startsWith('C')) {
+      cardElement.classList.add('card--color');
+    } else if (cardIdForType.startsWith('F')) {
+      cardElement.classList.add('card--fort');
+    } else {
+      cardElement.classList.add('card--special');
+    }
+
+    if (usedCards.has(card.getId())) {
+      cardElement.classList.add('used');
+    }
+    if (playerId === 'A' && this.selectedCardId === card.getId() && this.currentPlayer === playerId) {
+      cardElement.classList.add('selected');
+    }
+
+    const kind: 'color' | 'fort' | 'special' = cardIdForType.startsWith('C')
+      ? 'color'
+      : cardIdForType.startsWith('F')
+        ? 'fort'
+        : 'special';
+
+    let description = card.getDescription();
+    let turnInfo: string | null = null;
+    let isEffectChanged = false;
+
+    if (this.gameManager) {
+      const currentTurn = this.gameManager.getCurrentTurn();
+      const totalTurns = this.gameManager.getTotalTurns();
+      const remainingTurns = this.gameManager.getRemainingTurns();
+      const cardId = card.getId();
+
+      if (cardId === 'S01') {
+        const effectiveTurns = totalTurns - 3;
+        if (currentTurn <= effectiveTurns) {
+          const turnsUntilChange = effectiveTurns + 1 - currentTurn;
+          turnInfo = `のこり${turnsUntilChange}ターンでこうかぎれ`;
+          description = '使用時点の盤面を記録し、有効ターン内なら全マスの色ポイント符号を反転';
+        } else {
+          isEffectChanged = true;
+          description = '任意のマス1つの色ポイントを+1（C01：単点塗りと同じ効果）';
+          turnInfo = 'こうかがきれました';
+        }
+      } else if (cardId === 'S09') {
+        if (remainingTurns >= 4) {
+          const turnsUntilChange = remainingTurns - 3;
+          turnInfo = `のこり${turnsUntilChange}ターンでかくせい`;
+          description = '自色連結領域を対象。ランダム1〜3マス+1';
+        } else {
+          isEffectChanged = true;
+          turnInfo = 'かくせいしました';
+          description = '自色連結領域を対象。領域内の自色マスを2倍、領域外の自色マスをリセット';
+        }
+      } else if (cardId === 'S04') {
+        const pl = this.gameManager.getPlayer(playerId);
+        const handList = pl.getHand();
+        const remainingColorCards = handList.filter(c => {
+          const id = c.getId();
+          return id !== 'S04' && id.startsWith('C');
+        });
+
+        if (remainingColorCards.length <= 1) {
+          description = '任意のマス1つの色ポイントを+1';
+          isEffectChanged = true;
+        }
+      }
+    }
+
+    const visual = document.createElement('div');
+    visual.className = 'card-visual';
+
+    let titleSpan: HTMLElement;
+    let typeTextInner: HTMLElement;
+
+    if (kind === 'fort') {
+      const built = this.buildFortCardVisual(visual, card, description, turnInfo, isEffectChanged);
+      titleSpan = built.titleEl;
+      typeTextInner = built.typeTextInner;
+      if (isEffectChanged) {
+        cardElement.classList.add('effect-changed');
+      }
+      cardElement.title = `${card.getName()} (${card.getId()})\n${description}`;
+    } else if (kind === 'special') {
+      const built = this.buildSpecialCardVisual(visual, card, description, turnInfo, isEffectChanged);
+      titleSpan = built.titleEl;
+      typeTextInner = built.typeTextInner;
+      if (isEffectChanged) {
+        cardElement.classList.add('effect-changed');
+      }
+      cardElement.title = `${card.getName()} (${card.getId()})\n${description}`;
+    } else {
+      const built = this.buildColorCardVisual(visual, card, description, turnInfo, isEffectChanged);
+      titleSpan = built.titleEl;
+      typeTextInner = built.typeTextInner;
+      if (isEffectChanged) {
+        cardElement.classList.add('effect-changed');
+      }
+      cardElement.title = `${card.getName()} (${card.getId()})\n${description}`;
+    }
+
+    cardElement.appendChild(visual);
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this.fitTextOneLine(titleSpan, 20, 11);
+        this.fitTextOneLine(typeTextInner, 32, 12);
+      });
+    });
+
+    const isSpecialCard = card.getType() === 'special';
+    const cardIdForCheck = card.getId();
+    const isFortCard = cardIdForCheck.startsWith('F');
+    if (isSpecialCard) {
+      cardElement.classList.add('is-special');
+    }
+    if (isFortCard) {
+      cardElement.classList.add('is-fort');
+    }
+
+    const pickDisabled = this.isPlayerHandCardPickDisabled(card, playerId);
+    if (pickDisabled) {
+      cardElement.classList.add('disabled');
+    }
+
+    if (
+      !options?.suppressPickClick &&
+      playerId === 'A' &&
+      this.currentPlayer === playerId &&
+      !usedCards.has(card.getId()) &&
+      !pickDisabled
+    ) {
+      cardElement.addEventListener('click', () => this.selectCard(card.getId(), playerId));
+    }
+
+    return cardElement;
+  }
+
+  private getHandCardUiId(card: Card): string {
+    let id = this.handCardUiIdMap.get(card);
+    if (!id) {
+      id = this.handCardUiIdSeed++;
+      this.handCardUiIdMap.set(card, id);
+    }
+    return String(id);
+  }
+
+  private captureHandCarouselCardRects(root: HTMLElement): Map<string, DOMRect> {
+    const rects = new Map<string, DOMRect>();
+    const cards = root.querySelectorAll('.hand-carousel-card[data-carousel-card-uid]');
+    cards.forEach((el) => {
+      const card = el as HTMLElement;
+      const uid = card.dataset.carouselCardUid;
+      if (!uid) return;
+      rects.set(uid, card.getBoundingClientRect());
+    });
+    return rects;
+  }
+
+  private animateHandCarouselCardsFromPreviousRects(root: HTMLElement, previousRects: Map<string, DOMRect>): void {
+    if (previousRects.size === 0) return;
+    const easing = 'cubic-bezier(0.22, 1, 0.36, 1)';
+    requestAnimationFrame(() => {
+      const cards = root.querySelectorAll('.hand-carousel-card[data-carousel-card-uid]');
+      cards.forEach((el) => {
+        const card = el as HTMLElement;
+        const uid = card.dataset.carouselCardUid;
+        if (!uid) return;
+        const prev = previousRects.get(uid);
+        if (!prev) {
+          // 画面外スロットから入ってくるカード向けのフェードイン
+          this.animateHandCarouselCardEntry(card, easing);
+          return;
+        }
+        const next = card.getBoundingClientRect();
+        const dx = prev.left - next.left;
+        const dy = prev.top - next.top;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+        card.style.transition = 'none';
+        card.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px)`;
+        requestAnimationFrame(() => {
+          card.style.transition = `transform 400ms ${easing}`;
+          card.style.transform = 'translate(0px, 0px)';
+          window.setTimeout(() => {
+            if (card.style.transform === 'translate(0px, 0px)') {
+              card.style.transform = '';
+            }
+            if (card.style.transition === `transform 400ms ${easing}`) {
+              card.style.transition = '';
+            }
+          }, 420);
+        });
+      });
+    });
+  }
+
+  private animateHandCarouselCardEntry(card: HTMLElement, easing: string): void {
+    const slot = card.closest('.card-picker-slot') as HTMLElement | null;
+    const slotId = slot?.id ?? '';
+    const isUpper = slotId.endsWith('prev2') || slotId.endsWith('prev');
+    const isLower = slotId.endsWith('next2') || slotId.endsWith('next');
+    if (!isUpper && !isLower) return;
+
+    const entryDy = isUpper ? -32 : 32;
+    card.style.transition = 'none';
+    card.style.opacity = '0';
+    card.style.transform = `translate(0px, ${entryDy}px)`;
+    requestAnimationFrame(() => {
+      card.style.transition = `opacity 320ms ${easing}, transform 320ms ${easing}`;
+      card.style.opacity = '1';
+      card.style.transform = 'translate(0px, 0px)';
+      window.setTimeout(() => {
+        if (card.style.opacity === '1') {
+          card.style.opacity = '';
+        }
+        if (card.style.transform === 'translate(0px, 0px)') {
+          card.style.transform = '';
+        }
+        if (card.style.transition === `opacity 320ms ${easing}, transform 320ms ${easing}`) {
+          card.style.transition = '';
+        }
+      }, 360);
+    });
+  }
+
+  /**
+   * 円盤上の位置（数学座標：0°=右、反時計回り）。画面はY下向きなので dy は反転。
+   * カードは円の接線方向に近いチルト（rotateX ではなく平面内の rotate）。
+   */
+  private layoutHandDiscSlot(
+    el: HTMLElement,
+    angleDeg: number,
+    zIndex: number,
+    yOffsetPx: number = 0,
+    xOffsetPx: number = 0
+  ): void {
+    const r = GameUI.handDiscRadiusPx;
+    const hubPct = GameUI.handDiscHubLeftPct;
+    const rad = (angleDeg * Math.PI) / 180;
+    const dx = Math.cos(rad) * r + GameUI.handDiscCardOffsetXPx + xOffsetPx;
+    const dy = -Math.sin(rad) * r + yOffsetPx;
+    /* 参照：上のカードは時計回り（+）、中央0°、下は反時計回り（−）。弧の角度に対し (180−θ) で接線チルトと揃える */
+    const tiltDeg = (180 - angleDeg) * 0.82;
+    el.style.position = 'absolute';
+    el.style.left = `calc(${hubPct}% + ${dx.toFixed(2)}px)`;
+    el.style.top = `calc(50% + ${dy.toFixed(2)}px)`;
+    el.style.transform = `translate(-50%, -50%) rotate(${tiltDeg.toFixed(2)}deg)`;
+    el.style.zIndex = String(zIndex);
+  }
+
+  private clearHandDiscSlotLayout(el: HTMLElement): void {
+    el.style.position = '';
+    el.style.left = '';
+    el.style.top = '';
+    el.style.transform = '';
+    el.style.zIndex = '';
+  }
+
+  private syncCardLoaderRotation(cardCount: number): void {
+    const ring = document.getElementById('hand-deck-trigger') as HTMLElement | null;
+    if (!ring) return;
+
+    const stepDeg = cardCount > 0 ? 360 / cardCount : 0;
+    const rotationDeg = -this.handCarouselCenterIndex * stepDeg;
+    ring.style.setProperty('--loader-rotation', `${rotationDeg.toFixed(2)}deg`);
+    ring.style.setProperty('--loader-counter-rotation', `${(-rotationDeg * 0.72).toFixed(2)}deg`);
+    ring.style.setProperty('--loader-inner-rotation', `${(rotationDeg * 0.42).toFixed(2)}deg`);
+  }
+
+  /**
+   * 中央カードの実寸・実位置に合わせて、固定カーソル枠を追従させる。
+   * これにより解像度やスケール変更時もズレにくくなる。
+   */
+  private syncHandCursorToCenterCard(): void {
+    const stage = document.querySelector('.hand-carousel-stage') as HTMLElement | null;
+    const cursor = document.querySelector('.card-picker-cursor-fixed') as HTMLElement | null;
+    const centerCard = document.querySelector('#hand-a-slot-center .hand-carousel-card--center') as HTMLElement | null;
+    if (!cursor) return;
+    if (!stage || !centerCard) {
+      cursor.style.opacity = '0';
+      return;
+    }
+
+    const visual = centerCard.querySelector('.card-visual') as HTMLElement | null;
+    if (!visual) {
+      cursor.style.opacity = '0';
+      return;
+    }
+
+    const stageRect = stage.getBoundingClientRect();
+
+    // カーソルは中央カードの「静止位置」で完全に固定する。
+    // FLIPアニメ中の transform の影響を受けないよう、一時的に transform を外して静止矩形を測定する。
+    const savedCardTransform = centerCard.style.transform;
+    const savedCardTransition = centerCard.style.transition;
+    const hadInlineTransform = savedCardTransform !== '';
+    if (hadInlineTransform) {
+      centerCard.style.transition = 'none';
+      centerCard.style.transform = '';
+    }
+    const visualRect = visual.getBoundingClientRect();
+    if (hadInlineTransform) {
+      centerCard.style.transform = savedCardTransform;
+      centerCard.style.transition = savedCardTransition;
+    }
+
+    const framePadding = 6;
+    const width = visualRect.width + framePadding * 2;
+    const height = visualRect.height + framePadding * 2;
+    const centerX = visualRect.left - stageRect.left + visualRect.width / 2;
+    const centerY = visualRect.top - stageRect.top + visualRect.height / 2;
+
+    cursor.style.left = `${centerX}px`;
+    cursor.style.top = `${centerY}px`;
+    cursor.style.width = `${width}px`;
+    cursor.style.height = `${height}px`;
+    cursor.style.opacity = '1';
+  }
+
+  private renderHandCarousel(): void {
+    if (!this.gameManager) return;
+
+    const shell = document.getElementById('hand-a');
+    const wheel = document.getElementById('hand-a-wheel');
+    const prev2Slot = document.getElementById('hand-a-slot-prev2');
+    const prevSlot = document.getElementById('hand-a-slot-prev');
+    const centerSlot = document.getElementById('hand-a-slot-center');
+    const nextSlot = document.getElementById('hand-a-slot-next');
+    const next2Slot = document.getElementById('hand-a-slot-next2');
+    if (!shell || !wheel || !prev2Slot || !prevSlot || !centerSlot || !nextSlot || !next2Slot) return;
+
+    const previousRects = this.captureHandCarouselCardRects(wheel);
+    const prep = this.prepareSortedHandForPlayer('A');
+    if (!prep) return;
+    const { sortedHand, usedCards } = prep;
+    this.lastPlayerASortedHand = sortedHand;
+
+    const n = sortedHand.length;
+    const selIdx = this.selectedCardId ? sortedHand.findIndex(c => c.getId() === this.selectedCardId) : -1;
+    if (selIdx >= 0) {
+      this.handCarouselCenterIndex = selIdx;
+    } else if (n > 0) {
+      this.handCarouselCenterIndex = Math.max(0, Math.min(this.handCarouselCenterIndex, n - 1));
+    } else {
+      this.handCarouselCenterIndex = 0;
+    }
+    this.syncCardLoaderRotation(n);
+
+    const state = this.gameManager.getState();
+    const inactive =
+      this.playerADecided ||
+      this.currentPlayer !== 'A' ||
+      state !== 'selecting' ||
+      this.gameManager.isSkipNextTurn('A');
+    shell.classList.toggle('hand-carousel--inactive', inactive);
+    wheel.classList.toggle('hand-carousel--inactive', inactive);
+
+    const clearSlot = (el: HTMLElement) => {
+      el.innerHTML = '';
+    };
+    const slots = [prev2Slot, prevSlot, centerSlot, nextSlot, next2Slot];
+    slots.forEach(slot => {
+      clearSlot(slot);
+      this.clearHandDiscSlotLayout(slot);
+      slot.classList.remove('card-picker-slot--hidden');
+    });
+
+    const half = GameUI.handDiscArcHalfStepDeg;
+
+    if (n === 0) {
+      centerSlot.innerHTML = '<div class="hand-carousel-empty">手札がありません</div>';
+      prev2Slot.classList.add('card-picker-slot--hidden');
+      prevSlot.classList.add('card-picker-slot--hidden');
+      nextSlot.classList.add('card-picker-slot--hidden');
+      next2Slot.classList.add('card-picker-slot--hidden');
+      this.layoutHandDiscSlot(centerSlot, 180, 2);
+      this.syncHandCursorToCenterCard();
+      return;
+    }
+
+    const c = this.handCarouselCenterIndex;
+    const prev2Card = n > 4 ? sortedHand[(c - 2 + n) % n] : null;
+    const prevCard = n > 2 ? sortedHand[(c - 1 + n) % n] : null;
+    const currCard = sortedHand[c];
+    const nextCard = n > 1 ? sortedHand[(c + 1) % n] : null;
+    const next2Card = n > 4 ? sortedHand[(c + 2) % n] : null;
+
+    if (n === 1) {
+      prev2Slot.classList.add('card-picker-slot--hidden');
+      prevSlot.classList.add('card-picker-slot--hidden');
+      nextSlot.classList.add('card-picker-slot--hidden');
+      next2Slot.classList.add('card-picker-slot--hidden');
+    } else if (n === 2) {
+      prev2Slot.classList.add('card-picker-slot--hidden');
+      prevSlot.classList.add('card-picker-slot--hidden');
+      next2Slot.classList.add('card-picker-slot--hidden');
+    } else if (n <= 4) {
+      prev2Slot.classList.add('card-picker-slot--hidden');
+      next2Slot.classList.add('card-picker-slot--hidden');
+    }
+
+    const appendToSlot = (slot: HTMLElement, card: Card, role: 'prev2' | 'prev' | 'center' | 'next' | 'next2') => {
+      const el = this.buildPlayerHandCardElement(card, 'A', usedCards, { suppressPickClick: true });
+      el.classList.add('hand-carousel-card');
+      if (role === 'center') {
+        el.classList.add('hand-carousel-card--center');
+      } else if (role === 'prev2' || role === 'next2') {
+        el.classList.add(role === 'prev2' ? 'hand-carousel-card--wing-up' : 'hand-carousel-card--wing-down');
+      } else {
+        el.classList.add(role === 'prev' ? 'hand-carousel-card--wing-up' : 'hand-carousel-card--wing-down');
+      }
+      slot.appendChild(el);
+    };
+
+    if (n === 1) {
+      appendToSlot(centerSlot, currCard, 'center');
+      this.layoutHandDiscSlot(centerSlot, 180, 5);
+    } else {
+      if (prev2Card) {
+        appendToSlot(prev2Slot, prev2Card, 'prev2');
+        this.layoutHandDiscSlot(
+          prev2Slot,
+          180 - half * 2,
+          1,
+          -GameUI.handDiscWingYOffsetPx * 2,
+          GameUI.handDiscOuterWingXOffsetPx
+        );
+      }
+      if (prevCard) {
+        appendToSlot(prevSlot, prevCard, 'prev');
+        this.layoutHandDiscSlot(
+          prevSlot,
+          180 - half,
+          3,
+          -GameUI.handDiscWingYOffsetPx,
+          GameUI.handDiscWingXOffsetPx
+        );
+      }
+      appendToSlot(centerSlot, currCard, 'center');
+      this.layoutHandDiscSlot(centerSlot, 180, 5);
+      if (nextCard) {
+        appendToSlot(nextSlot, nextCard, 'next');
+        this.layoutHandDiscSlot(
+          nextSlot,
+          180 + half,
+          3,
+          GameUI.handDiscWingYOffsetPx,
+          GameUI.handDiscWingXOffsetPx
+        );
+      }
+      if (next2Card) {
+        appendToSlot(next2Slot, next2Card, 'next2');
+        this.layoutHandDiscSlot(
+          next2Slot,
+          180 + half * 2,
+          1,
+          GameUI.handDiscWingYOffsetPx * 2,
+          GameUI.handDiscOuterWingXOffsetPx
+        );
+      }
+    }
+
+    const rotate = (delta: number) => {
+      if (inactive || n <= 1) return;
+      this.handCarouselCenterIndex = (this.handCarouselCenterIndex + delta + n * 100) % n;
+      const card = sortedHand[this.handCarouselCenterIndex];
+      this.selectCard(card.getId(), 'A');
+    };
+
+    prev2Slot.onclick = inactive || n <= 4 ? null : () => rotate(-2);
+    prevSlot.onclick = inactive || n <= 1 ? null : () => rotate(-1);
+    nextSlot.onclick = inactive || n <= 1 ? null : () => rotate(1);
+    next2Slot.onclick = inactive || n <= 4 ? null : () => rotate(2);
+    centerSlot.onclick = null;
+
+    if (!inactive && n > 0 && this.selectedCardId === null) {
+      const cand = sortedHand[this.handCarouselCenterIndex];
+      if (!this.isPlayerHandCardPickDisabled(cand, 'A')) {
+        this.selectedCardId = cand.getId();
+        this.selectedCardIndex = null;
+        this.selectedPosition = null;
+        this.selectedRotation = 0;
+        this.selectedDirection = 'up';
+        this.hoveredPosition = null;
+        this.postHandBoardRefresh = true;
+      }
+    }
+
+    this.animateHandCarouselCardsFromPreviousRects(wheel, previousRects);
+    requestAnimationFrame(() => this.syncHandCursorToCenterCard());
+  }
+
+  private wheelAccumDeltaY: number = 0;
+  private wheelLastStepAt: number = 0;
+
+  private onHandCarouselWheel(ev: WheelEvent): void {
+    if (!this.gameManager) return;
+    const inactive =
+      this.playerADecided ||
+      this.currentPlayer !== 'A' ||
+      this.gameManager.getState() !== 'selecting' ||
+      this.gameManager.isSkipNextTurn('A');
+    if (inactive) return;
+    const n = this.lastPlayerASortedHand.length;
+    if (n <= 1) return;
+    ev.preventDefault();
+
+    // ホイールのイベント頻度が高い環境（Windowsなど）で1ステップずつ連打されるとFLIPアニメが
+    // 重なり、カードが上下にばらつく見え方になる。
+    // → deltaY を累積し、閾値と時間スロットルで 1ステップ/≈160ms に制限する。
+    this.wheelAccumDeltaY += ev.deltaY;
+    const stepThreshold = 40;
+    const minStepIntervalMs = 160;
+    if (Math.abs(this.wheelAccumDeltaY) < stepThreshold) return;
+    const now = performance.now();
+    if (now - this.wheelLastStepAt < minStepIntervalMs) return;
+
+    const delta = this.wheelAccumDeltaY > 0 ? 1 : -1;
+    this.wheelAccumDeltaY = 0;
+    this.wheelLastStepAt = now;
+
+    this.handCarouselCenterIndex = (this.handCarouselCenterIndex + delta + n * 100) % n;
+    const card = this.lastPlayerASortedHand[this.handCarouselCenterIndex];
+    this.selectCard(card.getId(), 'A');
+  }
+
+  private onHandCarouselKey(ev: KeyboardEvent): void {
+    if (!this.gameManager) return;
+    if (ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown') return;
+
+    // テキスト入力やモーダルへの入力中はカルーセルを操作しない
+    const target = ev.target as HTMLElement | null;
+    if (target) {
+      const tag = target.tagName;
+      if (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+    }
+    const openModal = document.querySelector('.modal:not(.hidden)');
+    if (openModal) return;
+
+    const inactive =
+      this.playerADecided ||
+      this.currentPlayer !== 'A' ||
+      this.gameManager.getState() !== 'selecting' ||
+      this.gameManager.isSkipNextTurn('A');
+    if (inactive) return;
+
+    const n = this.lastPlayerASortedHand.length;
+    if (n <= 1) return;
+
+    // ホイールと同じ時間スロットルを共有して、長押しで連続切替する場合も
+    // FLIPアニメが重ならないようにする。
+    const minStepIntervalMs = 160;
+    const now = performance.now();
+    if (now - this.wheelLastStepAt < minStepIntervalMs) {
+      ev.preventDefault();
+      return;
+    }
+    this.wheelLastStepAt = now;
+    this.wheelAccumDeltaY = 0;
+
+    ev.preventDefault();
+
+    const delta = ev.key === 'ArrowDown' ? 1 : -1;
+    this.handCarouselCenterIndex = (this.handCarouselCenterIndex + delta + n * 100) % n;
+    const card = this.lastPlayerASortedHand[this.handCarouselCenterIndex];
+    this.selectCard(card.getId(), 'A');
+  }
+
+  private openHandDeckModal(): void {
+    const modal = document.getElementById('hand-deck-modal');
+    const grid = document.getElementById('hand-deck-grid');
+    if (!modal || !grid || !this.gameManager) return;
+
+    if (
+      this.playerADecided ||
+      this.currentPlayer !== 'A' ||
+      this.gameManager.getState() !== 'selecting' ||
+      this.gameManager.isSkipNextTurn('A')
+    ) {
+      return;
+    }
+
+    this.handDeckModalOpen = true;
+    modal.classList.remove('hand-deck-modal--closing');
+    modal.classList.remove('hidden');
+    grid.innerHTML = '';
+
+    const prep = this.prepareSortedHandForPlayer('A');
+    if (!prep) {
+      this.closeHandDeckModal();
+      return;
+    }
+    const { sortedHand, usedCards } = prep;
+
+    sortedHand.forEach((card, index) => {
+      const wrap = document.createElement('button');
+      wrap.type = 'button';
+      wrap.className = 'hand-deck-item';
+      const el = this.buildPlayerHandCardElement(card, 'A', usedCards);
+      el.classList.add('hand-deck-item-card');
+      wrap.appendChild(el);
+
+      const disabled = this.isPlayerHandCardPickDisabled(card, 'A');
+      wrap.disabled = disabled;
+      if (!disabled) {
+        wrap.addEventListener('click', () => {
+          this.handCarouselCenterIndex = index;
+          this.selectCard(card.getId(), 'A');
+          this.closeHandDeckModal();
+        });
+      }
+      grid.appendChild(wrap);
+    });
+  }
+
+  private closeHandDeckModal(): void {
+    const modal = document.getElementById('hand-deck-modal');
+    if (modal) {
+      if (!modal.classList.contains('hidden')) {
+        modal.classList.add('hand-deck-modal--closing');
+        window.setTimeout(() => {
+          modal.classList.add('hidden');
+          modal.classList.remove('hand-deck-modal--closing');
+        }, 260);
+      }
+    }
+    this.handDeckModalOpen = false;
+  }
+
   private renderHand(container: HTMLElement, playerId: PlayerId, isCPU: boolean = false): void {
     if (!this.gameManager) return;
 
-    container.innerHTML = '';
-    
     if (isCPU) {
+      container.innerHTML = '';
       const player = this.gameManager.getPlayer(playerId);
       const remaining = player.getRemainingCardCount();
       const cpuInfo = document.createElement('div');
@@ -1816,206 +2592,19 @@ class GameUI {
       return;
     }
 
-    const player = this.gameManager.getPlayer(playerId);
-    let hand = player.getHand();
-    const usedCards = player.getUsedCards();
-
-    // ダブルアクション中で1枚目のカードが決定済みの場合、そのカードを手札に追加して表示
-    // remaining >= 1 の時（1枚目を決定した後、2枚目を決定するまで）は1枚目のカードを表示し続ける
-    const isDoubleActionActive = this.gameManager.isDoubleActionActive(playerId);
-    const remaining = this.gameManager.getDoubleActionRemaining(playerId);
-    if (isDoubleActionActive && remaining >= 1 && this.doubleActionFirstSelection) {
-      const firstCardId = this.doubleActionFirstSelection.cardId;
-      // 1枚目のカードがusedCardsに含まれている場合（手札から除外されている場合）、手札に追加
-      if (usedCards.has(firstCardId)) {
-        const firstCard = player.getCardById(firstCardId);
-        if (firstCard && !hand.find(c => c.getId() === firstCardId)) {
-          // 手札に1枚目のカードを追加
-          hand = [...hand, firstCard];
-        }
-      }
+    if (playerId === 'A') {
+      this.renderHandCarousel();
+      return;
     }
 
-    // 手札をソート：色カード → 強化カード → 特殊カードの順、それぞれ番号順
-    const sortedHand = [...hand].sort((a, b) => {
-      const idA = a.getId();
-      const idB = b.getId();
-      
-      // カードの種類を判定
-      const getCardCategory = (id: string): number => {
-        if (id.startsWith('S')) return 3; // 特殊カード
-        if (id.startsWith('F')) return 2; // 強化カード（Fxx）
-        if (id.startsWith('C')) return 1; // 色カード（Cxx）
-        return 4; // その他
-      };
-      
-      const categoryA = getCardCategory(idA);
-      const categoryB = getCardCategory(idB);
-      
-      // カテゴリで比較
-      if (categoryA !== categoryB) {
-        return categoryA - categoryB;
-      }
-      
-      // 同じカテゴリなら番号で比較
-      const numA = parseInt(idA.substring(1));
-      const numB = parseInt(idB.substring(1));
-      return numA - numB;
-    });
+    container.innerHTML = '';
+
+    const prep = this.prepareSortedHandForPlayer(playerId);
+    if (!prep) return;
+    const { sortedHand, usedCards } = prep;
 
     sortedHand.forEach(card => {
-      const cardElement = document.createElement('div');
-      cardElement.className = 'card';
-      const cardIdForType = card.getId();
-
-      if (cardIdForType.startsWith('C')) {
-        cardElement.classList.add('card--color');
-      } else if (cardIdForType.startsWith('F')) {
-        cardElement.classList.add('card--fort');
-      } else {
-        cardElement.classList.add('card--special');
-      }
-
-      if (usedCards.has(card.getId())) {
-        cardElement.classList.add('used');
-      }
-      if (playerId === 'A' && this.selectedCardId === card.getId() && this.currentPlayer === playerId) {
-        cardElement.classList.add('selected');
-      }
-
-      const kind: 'color' | 'fort' | 'special' = cardIdForType.startsWith('C')
-        ? 'color'
-        : cardIdForType.startsWith('F')
-          ? 'fort'
-          : 'special';
-
-      let description = card.getDescription();
-      let turnInfo: string | null = null;
-      let isEffectChanged = false;
-
-      if (this.gameManager) {
-        const currentTurn = this.gameManager.getCurrentTurn();
-        const totalTurns = this.gameManager.getTotalTurns();
-        const remainingTurns = this.gameManager.getRemainingTurns();
-        const cardId = card.getId();
-
-        if (cardId === 'S01') {
-          const effectiveTurns = totalTurns - 3;
-          if (currentTurn <= effectiveTurns) {
-            const turnsUntilChange = effectiveTurns + 1 - currentTurn;
-            turnInfo = `のこり${turnsUntilChange}ターンでこうかぎれ`;
-            description = '使用時点の盤面を記録し、有効ターン内なら全マスの色ポイント符号を反転';
-          } else {
-            isEffectChanged = true;
-            description = '任意のマス1つの色ポイントを+1（C01：単点塗りと同じ効果）';
-            turnInfo = 'こうかがきれました';
-          }
-        } else if (cardId === 'S09') {
-          if (remainingTurns >= 4) {
-            const turnsUntilChange = remainingTurns - 3;
-            turnInfo = `のこり${turnsUntilChange}ターンでかくせい`;
-            description = '自色連結領域を対象。ランダム1〜3マス+1';
-          } else {
-            isEffectChanged = true;
-            turnInfo = 'かくせいしました';
-            description = '自色連結領域を対象。領域内の自色マスを2倍、領域外の自色マスをリセット';
-          }
-        } else if (cardId === 'S04') {
-          const pl = this.gameManager.getPlayer(playerId);
-          const handList = pl.getHand();
-          const remainingColorCards = handList.filter(c => {
-            const id = c.getId();
-            return id !== 'S04' && id.startsWith('C');
-          });
-
-          if (remainingColorCards.length <= 1) {
-            description = '任意のマス1つの色ポイントを+1';
-            isEffectChanged = true;
-          }
-        }
-      }
-
-      const visual = document.createElement('div');
-      visual.className = 'card-visual';
-
-      let titleSpan: HTMLElement;
-      let typeTextInner: HTMLElement;
-
-      if (kind === 'fort') {
-        const built = this.buildFortCardVisual(visual, card, description, turnInfo, isEffectChanged);
-        titleSpan = built.titleEl;
-        typeTextInner = built.typeTextInner;
-        if (isEffectChanged) {
-          cardElement.classList.add('effect-changed');
-        }
-        cardElement.title = `${card.getName()} (${card.getId()})\n${description}`;
-      } else if (kind === 'special') {
-        const built = this.buildSpecialCardVisual(visual, card, description, turnInfo, isEffectChanged);
-        titleSpan = built.titleEl;
-        typeTextInner = built.typeTextInner;
-        if (isEffectChanged) {
-          cardElement.classList.add('effect-changed');
-        }
-        cardElement.title = `${card.getName()} (${card.getId()})\n${description}`;
-      } else {
-        const built = this.buildColorCardVisual(visual, card, description, turnInfo, isEffectChanged);
-        titleSpan = built.titleEl;
-        typeTextInner = built.typeTextInner;
-        if (isEffectChanged) {
-          cardElement.classList.add('effect-changed');
-        }
-        cardElement.title = `${card.getName()} (${card.getId()})\n${description}`;
-      }
-
-      cardElement.appendChild(visual);
-
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          this.fitTextOneLine(titleSpan, 20, 11);
-          this.fitTextOneLine(typeTextInner, 32, 12);
-        });
-      });
-
-      // ダブルアクション中は特殊カードと強化カードを選択不可
-      const isDoubleActionActive = this.gameManager ? this.gameManager.isDoubleActionActive(playerId) : false;
-      const remaining = this.gameManager ? this.gameManager.getDoubleActionRemaining(playerId) : 0;
-      const isSpecialCard = card.getType() === 'special';
-      // 強化カードかどうかを判定（Fxxで始まるID）
-      const cardIdForCheck = card.getId();
-      const isFortCard = cardIdForCheck.startsWith('F');
-      if (isSpecialCard) {
-        cardElement.classList.add('is-special');
-      }
-      if (isFortCard) {
-        cardElement.classList.add('is-fort');
-      }
-      
-      // スキップフラグをチェック
-      const isSkipped = this.gameManager ? this.gameManager.isSkipNextTurn(playerId) : false;
-      
-      // 1枚目で選択したカードを選択不可にする（表示はされる）
-      // remaining >= 1 の時（1枚目を決定した後、2枚目を決定するまで）は1枚目のカードを選択不可にする
-      let isFirstCardUsed = false;
-      if (isDoubleActionActive && remaining >= 1 && this.doubleActionFirstSelection) {
-        if (playerId === 'A' && this.doubleActionFirstSelection.cardId === card.getId()) {
-          isFirstCardUsed = true;
-        } else if (playerId === 'B' && this.doubleActionFirstSelection.cardId === card.getId()) {
-          isFirstCardUsed = true;
-        }
-      }
-      
-      const isDisabled = isSkipped || (isDoubleActionActive && (isSpecialCard || isFortCard)) || isFirstCardUsed;
-      
-      if (isDisabled) {
-        cardElement.classList.add('disabled');
-      }
-
-      // クリックイベント
-      // プレイヤーAのみ操作可能
-      if (playerId === 'A' && this.currentPlayer === playerId && !usedCards.has(card.getId()) && !isDisabled) {
-        cardElement.addEventListener('click', () => this.selectCard(card.getId(), playerId));
-      }
-
+      const cardElement = this.buildPlayerHandCardElement(card, playerId, usedCards);
       container.appendChild(cardElement);
     });
   }
@@ -2068,17 +2657,42 @@ class GameUI {
         };
         stateText = stateTextMap[state] || state;
       }
-      gameState.textContent = stateText;
+      gameState.textContent = this.getHudStateLabel();
     }
 
     // ダブルアクション状態を更新
     this.updatePlayerStatus();
   }
 
+  private getHudStateLabel(): string {
+    if (!this.gameManager) return 'STANDBY';
+    const state = this.gameManager.getState();
+    if (this.showingReveal) return 'REVEAL';
+    if (state === 'resolving') return 'SYNC';
+    if (state === 'finished') return 'COMPLETE';
+    if (state !== 'selecting') return 'STANDBY';
+    if (this.playerADecided && this.playerBDecided) return 'LOCKED';
+    if (this.playerBDecided) return 'SCAN OK';
+    if (this.playerADecided) return 'WAIT CPU';
+    return 'INPUT';
+  }
+
   private clearActionLog(): void {
     const actionLog = document.getElementById('action-log');
     if (actionLog) {
       actionLog.innerHTML = '';
+    }
+  }
+
+  private toggleActionLogPanel(): void {
+    this.actionLogExpanded = !this.actionLogExpanded;
+    const boardInfo = document.getElementById('board-info');
+    const toggle = document.getElementById('action-log-toggle') as HTMLButtonElement | null;
+
+    boardInfo?.classList.toggle('action-log-expanded', this.actionLogExpanded);
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', this.actionLogExpanded ? 'true' : 'false');
+      toggle.title = this.actionLogExpanded ? 'ログを最小化' : 'ログを展開';
     }
   }
 
@@ -2156,38 +2770,17 @@ class GameUI {
   private updateScores(): void {
     if (!this.gameManager) return;
 
-    const remainingTurns = this.gameManager.getRemainingTurns();
     const scoreA = document.getElementById('score-a');
     const scoreB = document.getElementById('score-b');
-    const scoreASection = scoreA?.parentElement; // .score要素
-    const scoreBSection = scoreB?.parentElement; // .score要素
+    const scores = this.gameManager.calculateScores();
 
-    // 残りターンが4以下になったらスコアを非表示
-    if (remainingTurns <= 4) {
-      if (scoreASection) {
-        scoreASection.style.display = 'none';
-      }
-      if (scoreBSection) {
-        scoreBSection.style.display = 'none';
-      }
-    } else {
-      // 残りターンが5以上なら表示
-      if (scoreASection) {
-        scoreASection.style.display = '';
-      }
-      if (scoreBSection) {
-        scoreBSection.style.display = '';
-      }
-      
-      // スコアを更新
-      if (scoreA) {
-        const score = this.gameManager.calculateScores().playerAScore;
-        scoreA.textContent = score.toString();
-      }
-      if (scoreB) {
-        const score = this.gameManager.calculateScores().playerBScore;
-        scoreB.textContent = score.toString();
-      }
+    scoreA?.parentElement?.style.removeProperty('display');
+    scoreB?.parentElement?.style.removeProperty('display');
+    if (scoreA) {
+      scoreA.textContent = scores.playerAScore.toString();
+    }
+    if (scoreB) {
+      scoreB.textContent = scores.playerBScore.toString();
     }
   }
 
@@ -2249,6 +2842,7 @@ class GameUI {
           // 選択をキャンセル
           if (this.gameManager.cancelCardSelection('A')) {
             this.selectedCardId = null;
+            this.handCarouselCenterIndex = 0;
             this.selectedPosition = null;
             this.selectedRotation = 0; // 回転をリセット
             this.playerADecided = false;
@@ -2581,6 +3175,7 @@ class GameUI {
         this.checkBothDecided();
         // 2枚目のカードを選択できるように、選択状態をリセット
         this.selectedCardId = null;
+        this.handCarouselCenterIndex = 0;
         this.selectedPosition = null;
         this.selectedRotation = 0; // 回転をリセット
         this.selectedDirection = 'up'; // 方向をリセット
@@ -2974,6 +3569,7 @@ class GameUI {
       // 状態をリセット
       this.currentPlayer = 'A';
       this.selectedCardId = null;
+      this.handCarouselCenterIndex = 0;
       this.selectedCardIndex = null;
       this.selectedPosition = null;
       this.selectedRotation = 0;
@@ -3138,6 +3734,7 @@ class GameUI {
     // 状態をリセット
     this.currentPlayer = 'A';
     this.selectedCardId = null;
+    this.handCarouselCenterIndex = 0;
     this.selectedCardIndex = null;
     this.selectedPosition = null;
     this.selectedRotation = 0;

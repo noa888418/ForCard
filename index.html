@@ -7,53 +7,107 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>ForCard - 戦略カードゲーム</title>
-    <link rel="stylesheet" href="styles.css?v=14">
+    <link rel="stylesheet" href="styles.css?v=48">
 </head>
 <body>
     <div id="screen-root"></div>
     <div id="app">
-        <header>
-            <h1>ForCard</h1>
-            <div id="game-info">
-                <div>ターン: <span id="turn-counter">1</span> / <span id="total-turns">15</span></div>
-                <div id="game-state">準備中</div>
-            </div>
-        </header>
-
         <div id="game-container">
-            <div id="player-b-section" class="player-section">
-                <h2>CPU</h2>
-                <div class="score">スコア: <span id="score-b">0</span></div>
-                <div id="player-b-status" class="player-status"></div>
-                <div class="hand" id="hand-b"></div>
+            <div id="controls" class="controls-column">
+                <button id="resolve-btn" class="ctrl-btn ctrl-btn--resolve" title="決定" aria-label="決定" disabled>
+                    <span class="ctrl-btn__icon ctrl-btn__icon--play" aria-hidden="true"></span>
+                </button>
+                <button id="retry-btn" class="ctrl-btn ctrl-btn--retry hidden" title="選びなおす" aria-label="選びなおす">
+                    <span class="ctrl-btn__icon ctrl-btn__icon--reload" aria-hidden="true"></span>
+                </button>
+                <button id="reset-btn" class="ctrl-btn ctrl-btn--reset" title="リセット" aria-label="リセット">
+                    <span class="ctrl-btn__icon ctrl-btn__icon--reload" aria-hidden="true"></span>
+                </button>
+                <button id="toggle-color-points-btn" class="ctrl-btn ctrl-btn--toggle toggle-btn" title="色ポイント表示" aria-label="色ポイント表示">
+                    <span class="ctrl-btn__text" aria-hidden="true">1</span>
+                </button>
+                <button id="main-menu-btn" class="ctrl-btn ctrl-btn--menu" title="タイトルに戻る" aria-label="タイトルに戻る">
+                    <span class="ctrl-btn__icon ctrl-btn__icon--power" aria-hidden="true"></span>
+                </button>
             </div>
-
             <div id="board-container">
+                <div id="board-hud">
+                    <div id="game-info">
+                        <div class="hud-module hud-module--turn">
+                            <span class="hud-label">TURN</span>
+                            <span class="hud-value"><span id="turn-counter">1</span><span class="hud-separator">/</span><span id="total-turns">15</span></span>
+                        </div>
+                        <div id="game-state" class="hud-module hud-module--state">準備中</div>
+                    </div>
+                    <div id="board-scores" class="board-hud-scores">
+                        <div class="score score--player"><span class="score-label">YOU</span><span id="score-a" class="score-value">0</span></div>
+                        <div class="score score--cpu"><span class="score-label">CPU</span><span id="score-b" class="score-value">0</span></div>
+                    </div>
+                    <div id="board-status" class="board-hud-status">
+                        <div id="player-a-status" class="player-status"></div>
+                        <div id="player-b-status" class="player-status"></div>
+                    </div>
+                    <div class="hand" id="hand-b"></div>
+                </div>
                 <div id="board-wrapper">
                     <div id="board-column-labels"></div>
                     <div id="board-row-labels"></div>
                     <div id="board"></div>
                 </div>
                 <div id="board-info">
+                    <button id="action-log-toggle" class="action-log-toggle" type="button" aria-expanded="false" aria-controls="action-log" title="ログを展開">
+                        <span class="action-log-toggle__label">LOG</span>
+                        <span class="action-log-toggle__chevron" aria-hidden="true"></span>
+                    </button>
                     <div id="action-log" class="action-log"></div>
                     <div id="selected-card-info" style="display: none;"></div>
                 </div>
             </div>
 
-            <div id="player-a-section" class="player-section">
-                <h2>あなた</h2>
-                <div class="score">スコア: <span id="score-a">0</span></div>
-                <div id="player-a-status" class="player-status"></div>
-                <div class="hand" id="hand-a"></div>
+            <div id="player-a-hand-column" class="player-a-hand-column">
+                <div id="hand-a" class="hand-carousel-shell">
+                    <div class="hand-carousel-stage">
+                        <button type="button" id="hand-deck-trigger" class="card-picker-ring" aria-label="山札一覧を開く" title="山札一覧">
+                            <span class="card-picker-ring__armor" aria-hidden="true"></span>
+                            <span class="card-picker-ring__tick-ring" aria-hidden="true"></span>
+                            <span class="card-picker-ring__card-rail" aria-hidden="true"></span>
+                            <span class="card-picker-ring__mag-slot card-picker-ring__mag-slot--a" aria-hidden="true"></span>
+                            <span class="card-picker-ring__mag-slot card-picker-ring__mag-slot--b" aria-hidden="true"></span>
+                            <span class="card-picker-ring__mag-slot card-picker-ring__mag-slot--c" aria-hidden="true"></span>
+                            <span class="card-picker-ring__scan-sweep" aria-hidden="true"></span>
+                            <span class="card-picker-ring__inner-glow" aria-hidden="true"></span>
+                            <span class="card-picker-ring__read-marker" aria-hidden="true"></span>
+                            <span class="card-picker-ring__clamp card-picker-ring__clamp--top" aria-hidden="true"></span>
+                            <span class="card-picker-ring__clamp card-picker-ring__clamp--bottom" aria-hidden="true"></span>
+                            <span class="card-picker-ring__arrow card-picker-ring__arrow--top" aria-hidden="true"></span>
+                            <span class="card-picker-ring__arrow card-picker-ring__arrow--bottom" aria-hidden="true"></span>
+                            <span class="card-picker-ring__lamp card-picker-ring__lamp--a" aria-hidden="true"></span>
+                            <span class="card-picker-ring__lamp card-picker-ring__lamp--b" aria-hidden="true"></span>
+                            <span class="card-picker-ring__lamp card-picker-ring__lamp--c" aria-hidden="true"></span>
+                            <span class="card-picker-ring__hub" aria-hidden="true">
+                                <span class="card-picker-ring__hub-icon" aria-hidden="true"></span>
+                                <span class="card-picker-ring__hub-label" aria-hidden="true">LOAD</span>
+                            </span>
+                        </button>
+                        <div id="hand-a-wheel" class="card-picker-viewport" tabindex="0" aria-label="手札（ホイールで切替）">
+                            <div id="hand-a-slot-prev2" class="card-picker-slot card-picker-slot--prev2" role="presentation"></div>
+                            <div id="hand-a-slot-prev" class="card-picker-slot card-picker-slot--prev" role="presentation"></div>
+                            <div id="hand-a-slot-center" class="card-picker-slot card-picker-slot--center" role="presentation"></div>
+                            <div id="hand-a-slot-next" class="card-picker-slot card-picker-slot--next" role="presentation"></div>
+                            <div id="hand-a-slot-next2" class="card-picker-slot card-picker-slot--next2" role="presentation"></div>
+                        </div>
+                        <div class="card-picker-cursor-fixed" aria-hidden="true">
+                            <span class="card-picker-cursor__bracket card-picker-cursor__bracket--tl"></span>
+                            <span class="card-picker-cursor__bracket card-picker-cursor__bracket--tr"></span>
+                            <span class="card-picker-cursor__bracket card-picker-cursor__bracket--bl"></span>
+                            <span class="card-picker-cursor__bracket card-picker-cursor__bracket--br"></span>
+                            <span class="card-picker-cursor__scanline"></span>
+                            <span class="card-picker-cursor__reticle"></span>
+                            <span class="card-picker-cursor__contact-shadow"></span>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-
-        <div id="controls">
-            <button id="resolve-btn" disabled>決定</button>
-            <button id="retry-btn" class="hidden">選びなおす</button>
-            <button id="reset-btn">リセット</button>
-            <button id="toggle-color-points-btn" class="toggle-btn">色ポイント表示</button>
-            <button id="main-menu-btn">メインメニュー</button>
         </div>
 
         <div id="result-modal" class="modal hidden">
@@ -61,6 +115,19 @@
                 <h2>ゲーム終了</h2>
                 <div id="result-content"></div>
                 <button id="close-result-btn">閉じる</button>
+            </div>
+        </div>
+
+        <div id="hand-deck-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="hand-deck-modal-title">
+            <div class="modal-content hand-deck-modal-content">
+                <button id="hand-deck-tab" type="button" class="hand-deck-drawer-tab" aria-label="カード一覧を閉じる" title="カード一覧を閉じる">
+                    <span class="hand-deck-drawer-tab__rail" aria-hidden="true"></span>
+                    <span class="hand-deck-drawer-tab__label">LOAD</span>
+                    <span class="hand-deck-drawer-tab__chevron" aria-hidden="true"></span>
+                </button>
+                <h2 id="hand-deck-modal-title">山札</h2>
+                <p class="hand-deck-modal-hint">CARD STORAGE / TAP TO LOAD</p>
+                <div id="hand-deck-grid" class="hand-deck-grid"></div>
             </div>
         </div>
 
@@ -76,7 +143,6 @@
         </div>
     </div>
 
-    <script type="module" src="dist/main.js?v=14"></script>
+    <script type="module" src="dist/main.js?v=36"></script>
 </body>
 </html>
-
