@@ -442,6 +442,102 @@ export class C17_TShape extends ColorCard {
   }
 }
 
+export class C18_LShapeUpRight extends C16_LShape {
+  constructor() {
+    super();
+    this.id = 'C18';
+    this.name = 'L字形成（上右）';
+  }
+
+  getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
+    return super.getTargetPositions(board, position, playerId, { rotation: 1 });
+  }
+}
+
+export class C19_LShapeUpLeft extends C16_LShape {
+  constructor() {
+    super();
+    this.id = 'C19';
+    this.name = 'L字形成（上左）';
+  }
+
+  getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
+    return super.getTargetPositions(board, position, playerId, { rotation: 2 });
+  }
+}
+
+export class C20_LShapeDownLeft extends C16_LShape {
+  constructor() {
+    super();
+    this.id = 'C20';
+    this.name = 'L字形成（下左）';
+  }
+
+  getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
+    return super.getTargetPositions(board, position, playerId, { rotation: 3 });
+  }
+}
+
+export class C23_TShapeDown extends C17_TShape {
+  constructor() {
+    super();
+    this.id = 'C23';
+    this.name = 'T字形成（下）';
+  }
+
+  getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
+    return super.getTargetPositions(board, position, playerId, { direction: 'down' });
+  }
+}
+
+export class C25_TShapeLeft extends C17_TShape {
+  constructor() {
+    super();
+    this.id = 'C25';
+    this.name = 'T字形成（左）';
+  }
+
+  getTargetPositions(board: Board, position: Position): Position[] {
+    const positions: Position[] = [position];
+    const offsets = [
+      { x: 0, y: -1 },
+      { x: 0, y: 1 },
+      { x: -1, y: 0 }
+    ];
+    for (const off of offsets) {
+      const pos = { x: position.x + off.x, y: position.y + off.y };
+      if (board.isValidPosition(pos.x, pos.y)) {
+        positions.push(pos);
+      }
+    }
+    return positions;
+  }
+}
+
+export class C26_TShapeRight extends C17_TShape {
+  constructor() {
+    super();
+    this.id = 'C26';
+    this.name = 'T字形成（右）';
+  }
+
+  getTargetPositions(board: Board, position: Position): Position[] {
+    const positions: Position[] = [position];
+    const offsets = [
+      { x: 0, y: -1 },
+      { x: 0, y: 1 },
+      { x: 1, y: 0 }
+    ];
+    for (const off of offsets) {
+      const pos = { x: position.x + off.x, y: position.y + off.y };
+      if (board.isValidPosition(pos.x, pos.y)) {
+        positions.push(pos);
+      }
+    }
+    return positions;
+  }
+}
+
 export class F04_LShapeBoost extends FortCard {
   constructor() {
     super('F04', 'L字強化（自陣のみ）', '任意の2×2ブロック内の自色マスだけ色ポイント+2', 2);
@@ -729,4 +825,3 @@ export class F13_ConnectedRegionWeaknessBoost extends FortCard {
     return [];
   }
 }
-

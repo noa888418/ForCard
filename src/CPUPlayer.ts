@@ -13,21 +13,28 @@ export class CPUPlayer {
   constructor(
     player: Player,
     playerId: PlayerId,
-    options: Partial<{ difficulty: 'easy' | 'normal' | 'hard' }> = {}
+    options: Partial<{ difficulty: 'easy' | 'normal' | 'hard'; level: number }> = {}
   ) {
     this.player = player;
     this.playerId = playerId;
 
-    const difficulty = options.difficulty ?? 'normal';
-    if (difficulty === 'easy') {
-      this.randomPickRate = 0.55;
-      this.maxSimulationsPerCard = 10;
-    } else if (difficulty === 'hard') {
-      this.randomPickRate = 0.08;
-      this.maxSimulationsPerCard = null;
+    if (typeof options.level === 'number') {
+      const cpuLevel = Math.max(1, Math.min(20, Math.round(options.level)));
+      const t = (cpuLevel - 1) / 19;
+      this.randomPickRate = 0.55 - t * 0.51;
+      this.maxSimulationsPerCard = cpuLevel >= 12 ? null : Math.max(8, Math.round(8 + t * 24));
     } else {
-      this.randomPickRate = 0.3;
-      this.maxSimulationsPerCard = null;
+      const difficulty = options.difficulty ?? 'normal';
+      if (difficulty === 'easy') {
+        this.randomPickRate = 0.55;
+        this.maxSimulationsPerCard = 10;
+      } else if (difficulty === 'hard') {
+        this.randomPickRate = 0.08;
+        this.maxSimulationsPerCard = null;
+      } else {
+        this.randomPickRate = 0.3;
+        this.maxSimulationsPerCard = null;
+      }
     }
   }
 
@@ -159,4 +166,3 @@ export class CPUPlayer {
     return this.player;
   }
 }
-

@@ -19,6 +19,7 @@ type GameStartSettings = Partial<{
   cardIds: string[] | null;
   playerBIsCPU: boolean;
   cpuDifficulty: 'easy' | 'normal' | 'hard';
+  cpuLevel: number;
 }>;
 
 class GameUI {
@@ -40,12 +41,14 @@ class GameUI {
     cardIds: string[] | null;
     playerBIsCPU: boolean;
     cpuDifficulty: 'easy' | 'normal' | 'hard';
+    cpuLevel: number;
   } = {
     boardSize: 5,
     totalTurns: 15,
     cardIds: null,
     playerBIsCPU: true,
-    cpuDifficulty: 'normal'
+    cpuDifficulty: 'normal',
+    cpuLevel: 10
   };
 
   private playerBIsCPU: boolean = true; // プレイヤーBがCPUかどうか
@@ -225,7 +228,7 @@ class GameUI {
     const playerB = new Player('B', [...deck]);
 
     this.gameManager = new GameManager(playerA, playerB, this.devSettings.boardSize, this.devSettings.totalTurns);
-    this.cpuPlayer = new CPUPlayer(playerB, 'B', { difficulty: this.devSettings.cpuDifficulty });
+    this.cpuPlayer = new CPUPlayer(playerB, 'B', { difficulty: this.devSettings.cpuDifficulty, level: this.devSettings.cpuLevel });
     this.currentPlayer = 'A';
     this.playerADecided = false;
     this.playerBDecided = false;
@@ -557,17 +560,16 @@ class GameUI {
   }
 
   private setupEventListeners(): void {
-    const resolveBtn = document.getElementById('resolve-btn');
     const resetBtn = document.getElementById('reset-btn');
-    const closeResultBtn = document.getElementById('close-result-btn');
+    const resultLogBtn = document.getElementById('result-log-btn');
+    const resultRetryBtn = document.getElementById('result-retry-btn');
+    const resultTitleBtn = document.getElementById('result-title-btn');
+    const resultLogModal = document.getElementById('result-log-modal');
+    const resultLogClose = document.getElementById('result-log-close');
     const mainMenuBtn = document.getElementById('main-menu-btn');
     const menuConfirmModal = document.getElementById('menu-confirm-modal');
     const menuConfirmOk = document.getElementById('menu-confirm-ok');
     const menuConfirmCancel = document.getElementById('menu-confirm-cancel');
-
-    if (resolveBtn) {
-      resolveBtn.addEventListener('click', () => this.onDecideButtonClick());
-    }
 
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
@@ -610,12 +612,29 @@ class GameUI {
       });
     }
 
-    if (closeResultBtn) {
-      closeResultBtn.addEventListener('click', () => {
-        const modal = document.getElementById('result-modal');
-        if (modal) {
-          modal.classList.add('hidden');
-        }
+    if (resultLogBtn) {
+      resultLogBtn.addEventListener('click', () => this.openResultLogModal());
+    }
+    if (resultRetryBtn) {
+      resultRetryBtn.addEventListener('click', () => {
+        this.closeResultLogModal();
+        document.getElementById('result-modal')?.classList.add('hidden');
+        this.initializeGame();
+      });
+    }
+    if (resultTitleBtn) {
+      resultTitleBtn.addEventListener('click', () => {
+        this.closeResultLogModal();
+        document.getElementById('result-modal')?.classList.add('hidden');
+        this.onReturnToMenu?.();
+      });
+    }
+    if (resultLogClose) {
+      resultLogClose.addEventListener('click', () => this.closeResultLogModal());
+    }
+    if (resultLogModal) {
+      resultLogModal.addEventListener('click', (e) => {
+        if (e.target === resultLogModal) this.closeResultLogModal();
       });
     }
 
@@ -680,12 +699,20 @@ class GameUI {
 
   private toggleColorPointsDisplay(): void {
     this.showColorPoints = !this.showColorPoints;
-    const toggleBtn = document.getElementById('toggle-color-points-btn');
-    if (toggleBtn) {
-      toggleBtn.textContent = `色ポイント: ${this.showColorPoints ? '表示' : '非表示'}`;
-    }
+    this.updateColorPointsToggleButton();
     // 盤面を更新して表示/非表示を反映
     this.updateBoard();
+  }
+
+  private updateColorPointsToggleButton(): void {
+    const toggleBtn = document.getElementById('toggle-color-points-btn');
+    if (toggleBtn) {
+      const text = toggleBtn.querySelector<HTMLElement>('.ctrl-btn__text');
+      if (text) {
+        text.textContent = this.showColorPoints ? '1' : '';
+      }
+      toggleBtn.setAttribute('aria-pressed', this.showColorPoints ? 'true' : 'false');
+    }
   }
 
   private onCardSelectorChange(playerId: PlayerId, value: string): void {
@@ -709,6 +736,7 @@ class GameUI {
 
   private updateUI(): void {
     if (!this.gameManager) return;
+    this.updateColorPointsToggleButton();
 
     // スキップフラグをチェックして、スキップしているプレイヤーを決定済みにする
     // これはターン開始時に実行されるため、スキップしているプレイヤーがカードを選択できないようにする
@@ -1628,6 +1656,24 @@ class GameUI {
         pattern.push({ x: centerX, y: centerY + 1 });
         break;
         
+      case 'C18':
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX, y: centerY - 1 });
+        pattern.push({ x: centerX + 1, y: centerY });
+        break;
+
+      case 'C19':
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX - 1, y: centerY });
+        pattern.push({ x: centerX, y: centerY - 1 });
+        break;
+
+      case 'C20':
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX, y: centerY + 1 });
+        pattern.push({ x: centerX - 1, y: centerY });
+        break;
+
       case 'C21': // 横一列塗り
         for (let x = 0; x < 5; x++) {
           pattern.push({ x, y: centerY });
@@ -1640,12 +1686,33 @@ class GameUI {
         }
         break;
         
+      case 'C23':
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX - 1, y: centerY });
+        pattern.push({ x: centerX + 1, y: centerY });
+        pattern.push({ x: centerX, y: centerY + 1 });
+        break;
+
       case 'C24': // 3×3ブロック塗り
         for (let dy = -1; dy <= 1; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
             pattern.push({ x: centerX + dx, y: centerY + dy });
           }
         }
+        break;
+
+      case 'C25':
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX, y: centerY - 1 });
+        pattern.push({ x: centerX, y: centerY + 1 });
+        pattern.push({ x: centerX - 1, y: centerY });
+        break;
+
+      case 'C26':
+        pattern.push({ x: centerX, y: centerY });
+        pattern.push({ x: centerX, y: centerY - 1 });
+        pattern.push({ x: centerX, y: centerY + 1 });
+        pattern.push({ x: centerX + 1, y: centerY });
         break;
         
       default:
@@ -2280,7 +2347,16 @@ class GameUI {
     this.lastPlayerASortedHand = sortedHand;
 
     const n = sortedHand.length;
-    const selIdx = this.selectedCardId ? sortedHand.findIndex(c => c.getId() === this.selectedCardId) : -1;
+    const indexedSelection =
+      this.selectedCardIndex !== null &&
+      this.selectedCardIndex >= 0 &&
+      this.selectedCardIndex < n &&
+      sortedHand[this.selectedCardIndex]?.getId() === this.selectedCardId;
+    const selIdx = indexedSelection
+      ? this.selectedCardIndex!
+      : this.selectedCardId
+        ? sortedHand.findIndex(c => c.getId() === this.selectedCardId)
+        : -1;
     if (selIdx >= 0) {
       this.handCarouselCenterIndex = selIdx;
     } else if (n > 0) {
@@ -2408,7 +2484,7 @@ class GameUI {
       if (inactive || n <= 1) return;
       this.handCarouselCenterIndex = (this.handCarouselCenterIndex + delta + n * 100) % n;
       const card = sortedHand[this.handCarouselCenterIndex];
-      this.selectCard(card.getId(), 'A');
+      this.selectCard(card.getId(), 'A', this.handCarouselCenterIndex);
     };
 
     prev2Slot.onclick = inactive || n <= 4 ? null : () => rotate(-2);
@@ -2421,7 +2497,7 @@ class GameUI {
       const cand = sortedHand[this.handCarouselCenterIndex];
       if (!this.isPlayerHandCardPickDisabled(cand, 'A')) {
         this.selectedCardId = cand.getId();
-        this.selectedCardIndex = null;
+        this.selectedCardIndex = this.handCarouselCenterIndex;
         this.selectedPosition = null;
         this.selectedRotation = 0;
         this.selectedDirection = 'up';
@@ -2465,7 +2541,7 @@ class GameUI {
 
     this.handCarouselCenterIndex = (this.handCarouselCenterIndex + delta + n * 100) % n;
     const card = this.lastPlayerASortedHand[this.handCarouselCenterIndex];
-    this.selectCard(card.getId(), 'A');
+    this.selectCard(card.getId(), 'A', this.handCarouselCenterIndex);
   }
 
   private onHandCarouselKey(ev: KeyboardEvent): void {
@@ -2514,7 +2590,7 @@ class GameUI {
     const delta = ev.key === 'ArrowDown' ? 1 : -1;
     this.handCarouselCenterIndex = (this.handCarouselCenterIndex + delta + n * 100) % n;
     const card = this.lastPlayerASortedHand[this.handCarouselCenterIndex];
-    this.selectCard(card.getId(), 'A');
+    this.selectCard(card.getId(), 'A', this.handCarouselCenterIndex);
   }
 
   private openHandDeckModal(): void {
@@ -2556,7 +2632,7 @@ class GameUI {
       if (!disabled) {
         wrap.addEventListener('click', () => {
           this.handCarouselCenterIndex = index;
-          this.selectCard(card.getId(), 'A');
+          this.selectCard(card.getId(), 'A', index);
           this.closeHandDeckModal();
         });
       }
@@ -2696,6 +2772,48 @@ class GameUI {
     }
   }
 
+  private openResultLogModal(): void {
+    const modal = document.getElementById('result-log-modal');
+    const content = document.getElementById('result-log-content');
+    const actionLog = document.getElementById('action-log');
+    if (!modal || !content) return;
+
+    content.innerHTML = '';
+    const entries = actionLog ? Array.from(actionLog.children).reverse() : [];
+
+    if (entries.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'result-log-entry result-log-entry--empty';
+      empty.textContent = 'ログはありません';
+      content.appendChild(empty);
+    } else {
+      let logNumber = 1;
+      entries.forEach((entry) => {
+        const row = document.createElement('div');
+        const isHeader = entry.classList.contains('log-header');
+        row.className = `result-log-entry${isHeader ? ' result-log-entry--header' : ''}`;
+        if (!isHeader) {
+          const number = document.createElement('span');
+          number.className = 'result-log-entry__number';
+          number.textContent = String(logNumber).padStart(2, '0');
+          logNumber++;
+          row.appendChild(number);
+        }
+        const text = document.createElement('span');
+        text.className = 'result-log-entry__text';
+        text.textContent = entry.textContent || '';
+        row.appendChild(text);
+        content.appendChild(row);
+      });
+    }
+
+    modal.classList.remove('hidden');
+  }
+
+  private closeResultLogModal(): void {
+    document.getElementById('result-log-modal')?.classList.add('hidden');
+  }
+
   private addActionLog(message: string, isHeader: boolean = false): void {
     const actionLog = document.getElementById('action-log');
     if (!actionLog) {
@@ -2770,44 +2888,23 @@ class GameUI {
   private updateScores(): void {
     if (!this.gameManager) return;
 
+    const scoreBoard = document.getElementById('board-scores');
     const scoreA = document.getElementById('score-a');
     const scoreB = document.getElementById('score-b');
     const scores = this.gameManager.calculateScores();
+    const shouldSealScores = this.gameManager.getRemainingTurns() <= 3 && this.gameManager.getState() !== 'finished';
 
-    scoreA?.parentElement?.style.removeProperty('display');
-    scoreB?.parentElement?.style.removeProperty('display');
+    scoreBoard?.classList.toggle('board-hud-scores--sealed', shouldSealScores);
     if (scoreA) {
-      scoreA.textContent = scores.playerAScore.toString();
+      scoreA.textContent = shouldSealScores ? '--' : scores.playerAScore.toString();
     }
     if (scoreB) {
-      scoreB.textContent = scores.playerBScore.toString();
+      scoreB.textContent = shouldSealScores ? '--' : scores.playerBScore.toString();
     }
   }
 
   private updateControls(): void {
     if (!this.gameManager) return;
-
-    const resolveBtn = document.getElementById('resolve-btn') as HTMLButtonElement;
-    if (resolveBtn) {
-      const state = this.gameManager.getState();
-      const activePlayer = this.currentPlayer;
-      const isDoubleActionA = this.gameManager.isDoubleActionActive('A');
-      const remainingA = this.gameManager.getDoubleActionRemaining('A');
-      
-      let canResolve = false;
-      // プレイヤーAのみ
-      const playerAReady = this.selectedCardId !== null && this.selectedPosition !== null;
-      canResolve = activePlayer === 'A' && playerAReady && state === 'selecting' && !this.playerADecided;
-      
-      // ダブルアクション中で1枚目のカードが未決定の場合、「次のカードを選択する」に変更
-      if (isDoubleActionA && remainingA > 1 && !this.doubleActionFirstCardSelected) {
-        resolveBtn.textContent = '次のカードを選択する';
-      } else {
-        resolveBtn.textContent = '決定';
-      }
-      
-      resolveBtn.disabled = !canResolve || this.gameManager.areBothPlayersReady();
-    }
 
     // 「選びなおす」ボタンの表示制御
     const retryBtn = document.getElementById('retry-btn');
@@ -2872,7 +2969,7 @@ class GameUI {
     }
   }
 
-  private selectCard(cardId: string, playerId: PlayerId): void {
+  private selectCard(cardId: string, playerId: PlayerId, handIndex: number | null = null): void {
     if (!this.gameManager) return;
 
     // スキップフラグをチェック
@@ -2891,7 +2988,7 @@ class GameUI {
     if (this.devSettings.playerBIsCPU) {
       if (this.currentPlayer !== playerId || playerId !== 'A') return;
       this.selectedCardId = cardId;
-      this.selectedCardIndex = null; // 通常モードではインデックス不要
+      this.selectedCardIndex = handIndex;
       this.selectedPosition = null;
       this.selectedRotation = 0; // 回転をリセット
       this.selectedDirection = 'up'; // 方向をリセット
@@ -2901,7 +2998,7 @@ class GameUI {
     else {
       if (playerId === 'A' && !this.playerADecided) {
         this.selectedCardId = cardId;
-        this.selectedCardIndex = null;
+        this.selectedCardIndex = handIndex;
         this.selectedPosition = null;
         this.selectedRotation = 0; // 回転をリセット
         this.hoveredPosition = null;
@@ -2981,132 +3078,25 @@ class GameUI {
     }
 
     // C16などの回転可能カード、C17の方向切り替え可能カードの処理
-    const isRotatableCard = selectedCardId === 'C16';
-    const isDirectionCard = selectedCardId === 'C17';
-    
-    // 通常モード：プレイヤーAのみ
-    if (this.devSettings.playerBIsCPU) {
-      if (playerId !== 'A' || !this.selectedCardId) return;
-      
-      // 同じ位置がクリックされた場合
-      if (this.selectedPosition && this.selectedPosition.x === x && this.selectedPosition.y === y) {
-        if (isRotatableCard) {
-          // C16: 回転を進める
-          this.selectedRotation = (this.selectedRotation + 1) % 4;
-          console.log(`[selectPosition] C16回転: ${this.selectedRotation * 90}度`);
-        } else if (isDirectionCard) {
-          // C17: 方向を切り替える
-          this.selectedDirection = this.selectedDirection === 'up' ? 'down' : 'up';
-          console.log(`[selectPosition] C17方向切り替え: ${this.selectedDirection === 'up' ? '上向き' : '下向き'}`);
-        }
-      } else {
-        // 位置が変わった場合はリセット
-        this.selectedPosition = { x, y };
-        if (isRotatableCard) {
-          this.selectedRotation = 0;
-        } else if (isDirectionCard) {
-          this.selectedDirection = 'up';
-        }
-      }
-      
+    if (playerId === 'A') {
+      if (!this.selectedCardId) return;
+      this.selectedPosition = { x, y };
       this.hoveredPosition = null;
-      this.updateCardTargets();
-      this.updateUI();
+      this.playerADecide();
+      return;
     }
-    // 開発者モード（プレイヤーBが手動の場合）
-    else {
-      if (playerId === 'A') {
-        if (!this.selectedCardId) return;
-        
-        // 同じ位置がクリックされた場合
-        if (this.selectedPosition && this.selectedPosition.x === x && this.selectedPosition.y === y) {
-          if (isRotatableCard) {
-            // C16: 回転を進める
-            this.selectedRotation = (this.selectedRotation + 1) % 4;
-            console.log(`[selectPosition] C16回転: ${this.selectedRotation * 90}度`);
-          } else if (isDirectionCard) {
-            // C17: 方向を切り替える
-            this.selectedDirection = this.selectedDirection === 'up' ? 'down' : 'up';
-            console.log(`[selectPosition] C17方向切り替え: ${this.selectedDirection === 'up' ? '上向き' : '下向き'}`);
-          }
-        } else {
-          // 位置が変わった場合はリセット
-          this.selectedPosition = { x, y };
-          if (isRotatableCard) {
-            this.selectedRotation = 0;
-          } else if (isDirectionCard) {
-            this.selectedDirection = 'up';
-          }
-        }
-        
-        this.hoveredPosition = null;
-        this.updateCardTargets();
-        this.updateUI();
-      } else if (playerId === 'B' && !this.playerBIsCPU) {
-        // ダブルアクション中で1枚目のカードが決定済みの場合、2枚目のカードの位置を選択できる
-        const isDoubleActionB = this.gameManager.isDoubleActionActive('B');
-        const remainingB = this.gameManager.getDoubleActionRemaining('B');
-        if (isDoubleActionB && remainingB > 1 && this.doubleActionFirstCardSelected) {
-          // 2枚目のカードの位置を選択
-          if (!this.playerBSelectedCardId) return;
-          
-          // 同じ位置がクリックされた場合
-          if (this.playerBSelectedPosition && this.playerBSelectedPosition.x === x && this.playerBSelectedPosition.y === y) {
-            if (isRotatableCard) {
-              // C16: 回転を進める
-              this.playerBSelectedRotation = (this.playerBSelectedRotation + 1) % 4;
-              console.log(`[selectPosition] C16回転（プレイヤーB）: ${this.playerBSelectedRotation * 90}度`);
-            } else if (isDirectionCard) {
-              // C17: 方向を切り替える
-              this.playerBSelectedDirection = this.playerBSelectedDirection === 'up' ? 'down' : 'up';
-              console.log(`[selectPosition] C17方向切り替え（プレイヤーB）: ${this.playerBSelectedDirection === 'up' ? '上向き' : '下向き'}`);
-            }
-          } else {
-            // 位置が変わった場合はリセット
-            this.playerBSelectedPosition = { x, y };
-            if (isRotatableCard) {
-              this.playerBSelectedRotation = 0;
-            } else if (isDirectionCard) {
-              this.playerBSelectedDirection = 'up';
-            }
-          }
-          
-          this.hoveredPosition = null;
-          this.updateCardTargets();
-          this.updateUI();
-        } else if (!this.playerBSelectedCardId) {
-          return;
-        } else {
-          // 同じ位置がクリックされた場合
-          if (this.playerBSelectedPosition && this.playerBSelectedPosition.x === x && this.playerBSelectedPosition.y === y) {
-            if (isRotatableCard) {
-              // C16: 回転を進める
-              this.playerBSelectedRotation = (this.playerBSelectedRotation + 1) % 4;
-              console.log(`[selectPosition] C16回転（プレイヤーB）: ${this.playerBSelectedRotation * 90}度`);
-            } else if (isDirectionCard) {
-              // C17: 方向を切り替える
-              this.playerBSelectedDirection = this.playerBSelectedDirection === 'up' ? 'down' : 'up';
-              console.log(`[selectPosition] C17方向切り替え（プレイヤーB）: ${this.playerBSelectedDirection === 'up' ? '上向き' : '下向き'}`);
-            }
-          } else {
-            // 位置が変わった場合はリセット
-            this.playerBSelectedPosition = { x, y };
-            if (isRotatableCard) {
-              this.playerBSelectedRotation = 0;
-            } else if (isDirectionCard) {
-              this.playerBSelectedDirection = 'up';
-            }
-          }
-          
-          this.hoveredPosition = null;
-          this.updateCardTargets();
-          this.updateUI();
-        }
-      }
+
+    if (playerId === 'B' && !this.playerBIsCPU) {
+      if (!this.playerBSelectedCardId) return;
+      this.playerBSelectedPosition = { x, y };
+      this.hoveredPosition = null;
+      this.playerBDecide();
+      return;
     }
+
+    return;
   }
 
-  // プレイヤーAが決定
   private playerADecide(): void {
     if (!this.gameManager || this.playerADecided) return;
     if (!this.selectedCardId || !this.selectedPosition) return;
@@ -3819,16 +3809,6 @@ class GameUI {
     }
   }
 
-  // 決定ボタンの処理
-  private onDecideButtonClick(): void {
-    const activePlayer = this.currentPlayer;
-    if (activePlayer === 'A') {
-      this.playerADecide();
-    } else if (activePlayer === 'B' && !this.playerBIsCPU) {
-      this.playerBDecide();
-    }
-  }
-
   private shuffleIntervalId: number | null = null;
 
   private showResult(): void {
@@ -3837,6 +3817,88 @@ class GameUI {
     const result = this.gameManager.calculateScores();
     const modal = document.getElementById('result-modal');
     const content = document.getElementById('result-content');
+    const actions = document.querySelector<HTMLElement>('#result-modal .result-actions');
+
+    if (modal && content) {
+      if (this.shuffleIntervalId !== null) {
+        clearInterval(this.shuffleIntervalId);
+        this.shuffleIntervalId = null;
+      }
+
+      const scoreDiff = Math.abs(result.playerAScore - result.playerBScore);
+      const resultToneClass =
+        result.winner === 'A' ? 'battle-result--win' :
+        result.winner === 'B' ? 'battle-result--lose' :
+        'battle-result--draw';
+      const verdictText =
+        result.winner === 'A' ? 'YOU WIN' :
+        result.winner === 'B' ? 'CPU WINS' :
+        'DRAW';
+      const verdictSubText =
+        result.winner === 'A' ? 'territory secured' :
+        result.winner === 'B' ? 'cpu dominance confirmed' :
+        'control remains contested';
+      const diffText = scoreDiff === 0 ? 'NO GAP' : `${scoreDiff} PT GAP`;
+
+      modal.classList.add('result-modal--battle');
+      actions?.classList.remove('result-actions--visible');
+      modal.classList.remove('hidden');
+      content.innerHTML = `
+        <div class="battle-result battle-result--counting">
+          <div class="battle-result__scanner" aria-hidden="true"></div>
+          <div class="battle-result__kicker">FINAL TALLY</div>
+          <div class="battle-result__headline">SCORE SEALED</div>
+          <div class="battle-result__subline">Calculating territory control...</div>
+          <div class="battle-result__duel">
+            <div class="battle-result__score-card battle-result__score-card--player">
+              <span class="battle-result__name">YOU</span>
+              <span class="battle-result__score" id="shuffling-score-a" data-score="${result.playerAScore}">--</span>
+              <span class="battle-result__unit">PTS</span>
+            </div>
+            <div class="battle-result__versus">VS</div>
+            <div class="battle-result__score-card battle-result__score-card--cpu">
+              <span class="battle-result__name">CPU</span>
+              <span class="battle-result__score" id="shuffling-score-b" data-score="${result.playerBScore}">--</span>
+              <span class="battle-result__unit">PTS</span>
+            </div>
+          </div>
+          <div class="battle-result__meter"><span></span></div>
+        </div>
+      `;
+
+      this.shuffleScores(result.playerAScore, result.playerBScore);
+
+      window.setTimeout(() => {
+        if (this.shuffleIntervalId !== null) {
+          clearInterval(this.shuffleIntervalId);
+          this.shuffleIntervalId = null;
+        }
+
+        content.innerHTML = `
+          <div class="battle-result battle-result--revealed ${resultToneClass}">
+            <div class="battle-result__burst" aria-hidden="true"></div>
+            <div class="battle-result__kicker">RESULT CONFIRMED</div>
+            <div class="battle-result__verdict">${verdictText}</div>
+            <div class="battle-result__subline">${verdictSubText}</div>
+            <div class="battle-result__duel battle-result__duel--final">
+              <div class="battle-result__score-card battle-result__score-card--player ${result.winner === 'A' ? 'is-winner' : ''}">
+                <span class="battle-result__name">YOU</span>
+                <span class="battle-result__score battle-result__score--final">${result.playerAScore}</span>
+                <span class="battle-result__unit">PTS</span>
+              </div>
+              <div class="battle-result__versus battle-result__versus--final">${diffText}</div>
+              <div class="battle-result__score-card battle-result__score-card--cpu ${result.winner === 'B' ? 'is-winner' : ''}">
+                <span class="battle-result__name">CPU</span>
+                <span class="battle-result__score battle-result__score--final">${result.playerBScore}</span>
+                <span class="battle-result__unit">PTS</span>
+              </div>
+            </div>
+          </div>
+        `;
+        actions?.classList.add('result-actions--visible');
+      }, 2500);
+      return;
+    }
 
     if (modal && content) {
       // 既存のシャッフルをクリア
@@ -3933,12 +3995,43 @@ class GameUI {
 
 }
 
-type ScreenMode = 'story' | 'free' | 'tutorial';
+type ScreenMode = 'battle' | 'puzzle' | 'tutorial';
+
+type PuzzleLevelConfig = {
+  level: number;
+  boardSize: number;
+  cardIds: CardId[];
+  target: number[];
+};
 
 class ScreenFlow {
+  private static readonly minBattleTurns = 4;
   private root: HTMLElement;
   private isTransitioning = false;
   private onStart: (mode: ScreenMode, settings?: GameStartSettings) => void;
+  private readonly puzzleClearStorageKey = 'forcard:puzzle-cleared-levels';
+  private readonly puzzleLevels: PuzzleLevelConfig[] = [
+    { level: 1, boardSize: 3, cardIds: ['C01', 'C01', 'C01'], target: [0, 1, 0, 0, 1, 0, 0, 1, 0] },
+    { level: 2, boardSize: 3, cardIds: ['C01', 'C01', 'C01'], target: [0, 0, 0, 1, 1, 1, 0, 0, 0] },
+    { level: 3, boardSize: 3, cardIds: ['C01', 'C01', 'C01', 'C01'], target: [1, 0, 1, 0, 0, 0, 1, 0, 1] },
+    { level: 4, boardSize: 3, cardIds: ['C01', 'C01', 'C01', 'C01', 'C01'], target: [0, 1, 0, 1, 1, 1, 0, 1, 0] },
+    { level: 5, boardSize: 3, cardIds: ['C03'], target: [0, 0, 0, 1, 1, 1, 0, 0, 0] },
+    { level: 6, boardSize: 3, cardIds: ['C14'], target: [0, 1, 0, 0, 1, 0, 0, 1, 0] },
+    { level: 7, boardSize: 3, cardIds: ['C01', 'C03'], target: [1, 1, 1, 0, 1, 0, 0, 0, 0] },
+    { level: 8, boardSize: 3, cardIds: ['C01', 'C14'], target: [1, 1, 0, 0, 1, 0, 0, 1, 0] },
+    { level: 9, boardSize: 4, cardIds: ['C01', 'C01', 'C01', 'C01'], target: [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0] },
+    { level: 10, boardSize: 4, cardIds: ['C15'], target: [0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0] },
+    { level: 11, boardSize: 4, cardIds: ['C03', 'C01'], target: [1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1] },
+    { level: 12, boardSize: 4, cardIds: ['C01', 'C01', 'C14'], target: [0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1] },
+    { level: 13, boardSize: 4, cardIds: ['C03', 'C03'], target: [0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0] },
+    { level: 14, boardSize: 4, cardIds: ['C14', 'C14'], target: [0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0] },
+    { level: 15, boardSize: 4, cardIds: ['C15', 'C15'], target: [1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1] },
+    { level: 16, boardSize: 4, cardIds: ['C01', 'C15', 'C03'], target: [1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1] },
+    { level: 17, boardSize: 4, cardIds: ['C11', 'C01', 'C01'], target: [0, 1, 0, 0, 1, 2, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1] },
+    { level: 18, boardSize: 4, cardIds: ['C12', 'C03', 'C01'], target: [1, 0, 1, 0, 0, 1, 0, 0, 2, 1, 2, 0, 0, 0, 0, 1] },
+    { level: 19, boardSize: 4, cardIds: ['C13', 'C14'], target: [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0] },
+    { level: 20, boardSize: 5, cardIds: ['C11', 'C12', 'C01', 'C01'], target: [1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 2, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1] }
+  ];
 
   constructor(root: HTMLElement, onStart: (mode: ScreenMode, settings?: GameStartSettings) => void) {
     this.root = root;
@@ -3957,8 +4050,17 @@ class ScreenFlow {
       </div>
     `;
 
+    let titleInputCleaned = false;
+    const cleanupTitleInput = () => {
+      if (titleInputCleaned) return;
+      titleInputCleaned = true;
+      window.removeEventListener('keydown', onKeyDown);
+      this.root.removeEventListener('pointerdown', onPointerDown);
+    };
+
     const proceed = () => {
       if (this.isTransitioning) return;
+      cleanupTitleInput();
       this.isTransitioning = true;
       const screen = this.root.querySelector('.screen') as HTMLElement | null;
       if (screen) screen.classList.add('screen-exit');
@@ -3976,8 +4078,8 @@ class ScreenFlow {
 
     const onPointerDown = () => proceed();
 
-    window.addEventListener('keydown', onKeyDown, { once: true });
-    this.root.addEventListener('pointerdown', onPointerDown, { once: true });
+    window.addEventListener('keydown', onKeyDown);
+    this.root.addEventListener('pointerdown', onPointerDown);
   }
 
   showMenu(): void {
@@ -3986,7 +4088,7 @@ class ScreenFlow {
         <div class="screen-inner">
           <div class="menu-title">MAIN MENU</div>
           <div class="menu-grid" role="menu" aria-label="メインメニュー">
-            <button class="mode-card bg-story" data-mode="story" type="button">
+            <button class="mode-card bg-battle" data-mode="battle" type="button">
               <div class="mode-chip">20 STAGES</div>
               <div class="mode-title">ストーリーモード</div>
               <div class="mode-desc">
@@ -3996,7 +4098,7 @@ class ScreenFlow {
             </button>
 
             <div class="menu-col">
-              <button class="mode-card bg-free" data-mode="free" type="button">
+              <button class="mode-card bg-puzzle" data-mode="puzzle" type="button">
                 <div class="mode-chip">CUSTOM</div>
                 <div class="mode-title">フリーモード</div>
                 <div class="mode-desc">
@@ -4020,7 +4122,30 @@ class ScreenFlow {
       </div>
     `;
 
-    const firstBtn = this.root.querySelector<HTMLButtonElement>('button[data-mode="story"]');
+    const battleBtn = this.root.querySelector<HTMLButtonElement>('button[data-mode="battle"]');
+    if (battleBtn) {
+      battleBtn.innerHTML = `
+        <div class="mode-chip">BATTLE</div>
+        <div class="mode-title">バトル</div>
+        <div class="mode-desc">
+          CPUレベル、盤面、ターン、使用カードを設定して<br/>
+          発光床の制御競技を開始します。
+        </div>
+      `;
+    }
+    const puzzleBtn = this.root.querySelector<HTMLButtonElement>('button[data-mode="puzzle"]');
+    if (puzzleBtn) {
+      puzzleBtn.innerHTML = `
+        <div class="mode-chip">INSPECTION</div>
+        <div class="mode-title">パズルモード</div>
+        <div class="mode-desc">
+          目標盤面と完全一致するように、制御端末を使って<br/>
+          出荷前の点検作業を行います。
+        </div>
+      `;
+    }
+
+    const firstBtn = this.root.querySelector<HTMLButtonElement>('button[data-mode="battle"]');
     firstBtn?.focus();
 
     const onActivate = (mode: ScreenMode) => {
@@ -4029,9 +4154,14 @@ class ScreenFlow {
       const screen = this.root.querySelector('.screen') as HTMLElement | null;
       if (screen) screen.classList.add('screen-exit');
       window.setTimeout(() => {
-        if (mode === 'free') {
+        if (mode === 'battle') {
           this.isTransitioning = false;
-          this.showFreeSetup();
+          this.showBattleSetup();
+          return;
+        }
+        if (mode === 'puzzle') {
+          this.isTransitioning = false;
+          this.showPuzzleLevelSelect();
           return;
         }
         this.root.innerHTML = '';
@@ -4050,7 +4180,466 @@ class ScreenFlow {
     });
   }
 
-  private showFreeSetup(): void {
+  private showPuzzleLevelSelect(page = 0): void {
+    const pageSize = 10;
+    const totalPages = Math.max(1, Math.ceil(this.puzzleLevels.length / pageSize));
+    let currentPage = Math.min(Math.max(page, 0), totalPages - 1);
+    const buildLevelButtons = (pageIndex: number) => {
+      const visibleLevels = this.puzzleLevels.slice(pageIndex * pageSize, pageIndex * pageSize + pageSize);
+      return visibleLevels.map(level => `
+              <button class="puzzle-level-card ${this.isPuzzleLevelCleared(level.level) ? 'is-cleared' : ''}" data-puzzle-level="${level.level}" type="button">
+                ${this.isPuzzleLevelCleared(level.level) ? '<span class="puzzle-level-card__clear-mark" aria-hidden="true"></span>' : ''}
+                <span class="puzzle-level-card__title">LEVEL ${level.level}</span>
+              </button>
+            `).join('');
+    };
+    this.root.innerHTML = `
+      <div class="screen puzzle-level-screen" data-screen="puzzle-level-select">
+        <div class="puzzle-bg" aria-hidden="true"></div>
+        <div class="puzzle-level-select-panel">
+          <div class="menu-title">PUZZLE MODE</div>
+          <div class="puzzle-level-pager" aria-label="page navigation">
+            <button class="setup-secondary puzzle-page-btn" id="puzzle-page-prev" type="button" ${currentPage === 0 ? 'disabled' : ''}>PREV</button>
+            <div class="puzzle-page-label">PAGE ${currentPage + 1} / ${totalPages}</div>
+            <button class="setup-secondary puzzle-page-btn" id="puzzle-page-next" type="button" ${currentPage >= totalPages - 1 ? 'disabled' : ''}>NEXT</button>
+          </div>
+          <div class="puzzle-level-grid-viewport">
+            <div class="puzzle-level-grid">
+              ${buildLevelButtons(currentPage)}
+            </div>
+          </div>
+          <div class="setup-actions">
+            <button class="setup-secondary" id="puzzle-level-back" type="button">戻る</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const grid = this.root.querySelector<HTMLElement>('.puzzle-level-grid');
+    const pageLabel = this.root.querySelector<HTMLElement>('.puzzle-page-label');
+    const prevBtn = this.root.querySelector<HTMLButtonElement>('#puzzle-page-prev');
+    const nextBtn = this.root.querySelector<HTMLButtonElement>('#puzzle-page-next');
+    const bindLevelButtons = () => {
+      this.root.querySelectorAll<HTMLButtonElement>('[data-puzzle-level]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const level = Number(btn.dataset.puzzleLevel || '1');
+          this.showPuzzleLevel(level);
+        });
+      });
+    };
+    const updatePager = () => {
+      if (pageLabel) pageLabel.textContent = `PAGE ${currentPage + 1} / ${totalPages}`;
+      if (prevBtn) prevBtn.disabled = currentPage === 0;
+      if (nextBtn) nextBtn.disabled = currentPage >= totalPages - 1;
+    };
+    const switchPage = (nextPage: number) => {
+      if (!grid || nextPage < 0 || nextPage >= totalPages || nextPage === currentPage || grid.classList.contains('is-sliding')) return;
+      const direction = nextPage > currentPage ? 'next' : 'prev';
+      grid.classList.add('is-sliding', direction === 'next' ? 'slide-out-left' : 'slide-out-right');
+      window.setTimeout(() => {
+        currentPage = nextPage;
+        grid.innerHTML = buildLevelButtons(currentPage);
+        updatePager();
+        bindLevelButtons();
+        grid.classList.remove('slide-out-left', 'slide-out-right');
+        grid.classList.add(direction === 'next' ? 'slide-in-right' : 'slide-in-left');
+        window.setTimeout(() => {
+          grid.classList.remove('is-sliding', 'slide-in-right', 'slide-in-left');
+        }, 220);
+      }, 220);
+    };
+    bindLevelButtons();
+    this.root.querySelector<HTMLButtonElement>('#puzzle-level-back')?.addEventListener('click', () => this.showMenu());
+    prevBtn?.addEventListener('click', () => switchPage(currentPage - 1));
+    nextBtn?.addEventListener('click', () => switchPage(currentPage + 1));
+  }
+
+  private showPuzzleLevelOne(): void {
+    this.showPuzzleLevel(1);
+  }
+
+  private getClearedPuzzleLevels(): Set<number> {
+    try {
+      const raw = window.localStorage.getItem(this.puzzleClearStorageKey);
+      const levels = raw ? JSON.parse(raw) : [];
+      return new Set(Array.isArray(levels) ? levels.filter((level): level is number => Number.isInteger(level)) : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  private isPuzzleLevelCleared(level: number): boolean {
+    return this.getClearedPuzzleLevels().has(level);
+  }
+
+  private markPuzzleLevelCleared(level: number): void {
+    try {
+      const cleared = this.getClearedPuzzleLevels();
+      cleared.add(level);
+      window.localStorage.setItem(this.puzzleClearStorageKey, JSON.stringify([...cleared].sort((a, b) => a - b)));
+    } catch {
+      // localStorageが使えない環境では、クリア印の永続化だけ諦める。
+    }
+  }
+
+  private showPuzzleLevel(levelNumber: number): void {
+    const config = this.puzzleLevels.find(level => level.level === levelNumber) ?? this.puzzleLevels[0];
+    const board = Array(config.boardSize * config.boardSize).fill(0) as number[];
+    const used = config.cardIds.map(() => false);
+    let selectedCardIndex: number | null = 0;
+    let pendingPositions: number[] = [];
+    let applySelectedPuzzleCard = (originIndex: number) => {};
+    const history: Array<{ board: number[]; used: boolean[]; selectedCardIndex: number | null }> = [];
+    const cards = config.cardIds
+      .map(id => CardFactory.createCardById(id))
+      .filter((card): card is Card => card !== null);
+    if (cards.length !== config.cardIds.length) return;
+
+    const renderBoard = () => {
+      const current = this.root.querySelector<HTMLElement>('#puzzle-current-grid');
+      const cardsLeft = this.root.querySelector<HTMLElement>('#puzzle-cards-left');
+      const turnState = this.root.querySelector<HTMLElement>('#puzzle-turn-state');
+      const undoBtn = this.root.querySelector<HTMLButtonElement>('#puzzle-undo');
+      if (current) current.innerHTML = this.buildPuzzleGrid(board, config.boardSize, true, pendingPositions);
+      if (cardsLeft) cardsLeft.textContent = String(used.filter(v => !v).length);
+      if (turnState) turnState.textContent = `${used.filter(Boolean).length} / ${config.cardIds.length}`;
+      if (undoBtn) undoBtn.disabled = history.length === 0;
+      this.attachPuzzleCellHandlers(() => selectedCardIndex, value => {
+        if (selectedCardIndex === null) return;
+        applySelectedPuzzleCard(value);
+      });
+    };
+
+    this.root.innerHTML = `
+      <div class="screen puzzle-screen" data-screen="puzzle-level-1">
+        <div class="puzzle-bg" aria-hidden="true"></div>
+        <div class="puzzle-current-level">LEVEL ${config.level}</div>
+        <div class="puzzle-topbar puzzle-topbar--battle">
+          <button id="puzzle-reset" class="ctrl-btn ctrl-btn--retry" type="button" title="リセット" aria-label="リセット">
+            <span class="ctrl-btn__icon ctrl-btn__icon--reload" aria-hidden="true"></span>
+          </button>
+          <button id="puzzle-undo" class="ctrl-btn ctrl-btn--undo" type="button" title="一手戻す" aria-label="一手戻す" disabled>
+            <span class="ctrl-btn__icon ctrl-btn__icon--undo" aria-hidden="true"></span>
+          </button>
+          <button id="puzzle-back" class="ctrl-btn ctrl-btn--menu" type="button" title="レベル選択に戻る" aria-label="レベル選択に戻る">
+            <span class="ctrl-btn__icon ctrl-btn__icon--power" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <main class="puzzle-main">
+          <section class="puzzle-board-panel puzzle-board-panel--current">
+            <div class="puzzle-panel-label">OPERATE FLOOR</div>
+            <div class="puzzle-grid puzzle-grid--current" id="puzzle-current-grid" style="--puzzle-board-size: ${config.boardSize};"></div>
+          </section>
+          <section class="puzzle-board-panel puzzle-board-panel--target">
+            <div class="puzzle-panel-label">TARGET FLOOR</div>
+            <div class="puzzle-grid puzzle-grid--target" style="--puzzle-board-size: ${config.boardSize};">
+              ${this.buildPuzzleGrid(config.target, config.boardSize, false, [])}
+            </div>
+          </section>
+        </main>
+
+        <section class="puzzle-card-dock" aria-label="カード選択欄">
+          <div class="puzzle-card-edge puzzle-card-edge--left" aria-hidden="true"></div>
+          <div class="puzzle-card-edge puzzle-card-edge--right" aria-hidden="true"></div>
+          <div class="puzzle-card-strip puzzle-card-strip--battle" id="puzzle-card-strip">
+            ${cards.map((card, i) => this.buildPuzzleBattleCard(card, i)).join('')}
+          </div>
+        </section>
+        <div class="puzzle-result-overlay hidden" id="puzzle-result-overlay" role="status" aria-live="polite"></div>
+      </div>
+    `;
+
+    const selectCard = (index: number | null) => {
+      selectedCardIndex = index;
+      pendingPositions = [];
+      updateHandState();
+      renderBoard();
+    };
+    const updateHandState = () => {
+      this.root.querySelectorAll<HTMLElement>('.puzzle-hand-card').forEach((el) => {
+        const i = Number(el.dataset.cardIndex);
+        el.classList.toggle('selected', selectedCardIndex === i && !used[i]);
+        el.classList.toggle('used', used[i]);
+      });
+    };
+
+    this.root.querySelectorAll<HTMLButtonElement>('.puzzle-hand-card').forEach((el) => {
+      el.addEventListener('click', () => {
+        const index = Number(el.dataset.cardIndex);
+        if (used[index]) return;
+        selectCard(index);
+      });
+    });
+    this.root.querySelector<HTMLButtonElement>('#puzzle-back')?.addEventListener('click', () => this.showPuzzleLevelSelect(Math.floor((config.level - 1) / 10)));
+    this.root.querySelector<HTMLButtonElement>('#puzzle-reset')?.addEventListener('click', () => this.showPuzzleLevel(config.level));
+    this.root.querySelector<HTMLButtonElement>('#puzzle-undo')?.addEventListener('click', () => {
+      const snapshot = history.pop();
+      if (!snapshot) return;
+      board.splice(0, board.length, ...snapshot.board);
+      used.splice(0, used.length, ...snapshot.used);
+      selectedCardIndex = snapshot.selectedCardIndex;
+      pendingPositions = [];
+      renderBoard();
+      updateHandState();
+    });
+    applySelectedPuzzleCard = (originIndex: number) => {
+      if (selectedCardIndex === null || used[selectedCardIndex]) return;
+      pendingPositions = this.getPuzzleCardTargetIndexes(config.boardSize, cards[selectedCardIndex].getId(), originIndex);
+      if (pendingPositions.length === 0) return;
+      history.push({ board: [...board], used: [...used], selectedCardIndex });
+      for (const index of pendingPositions) {
+        board[index] += 1;
+      }
+      used[selectedCardIndex] = true;
+      const next = used.findIndex(v => !v);
+      selectedCardIndex = next >= 0 ? next : null;
+      pendingPositions = [];
+      renderBoard();
+      updateHandState();
+      if (used.every(Boolean)) {
+        const success = board.every((v, i) => v === config.target[i]);
+        if (success) this.markPuzzleLevelCleared(config.level);
+        window.setTimeout(() => this.showPuzzleResult(config.level, success), 220);
+      }
+    };
+    renderBoard();
+    selectCard(selectedCardIndex);
+    this.attachPuzzleCardAutoScroll();
+  }
+
+  private buildPuzzleGrid(values: number[], boardSize: number, interactive: boolean, pendingIndexes: number[]): string {
+    const pendingSet = new Set(pendingIndexes);
+    return values.map((value, index) => {
+      const stateClass = value > 0
+        ? ` player-a stability-${Math.min(value, 5)}`
+        : value < 0
+          ? ` player-b stability-${Math.min(Math.abs(value), 5)}`
+          : ' neutral';
+      const pendingClass = interactive && pendingSet.has(index) ? ' selected-target' : '';
+      const attrs = interactive ? ` role="button" tabindex="0" data-cell-index="${index}"` : '';
+      return `<div class="puzzle-cell cell${stateClass}${pendingClass}"${attrs}><span>${value}</span></div>`;
+    }).join('');
+  }
+
+  private getPuzzleCardTargetIndexes(boardSize: number, cardId: CardId, originIndex: number): number[] {
+    const x = originIndex % boardSize;
+    const y = Math.floor(originIndex / boardSize);
+    const positions: Array<{ x: number; y: number }> = [];
+    const add = (px: number, py: number) => {
+      if (px >= 0 && px < boardSize && py >= 0 && py < boardSize) {
+        positions.push({ x: px, y: py });
+      }
+    };
+
+    if (cardId === 'C03' || cardId === 'C13') {
+      add(x - 1, y);
+      add(x, y);
+      add(x + 1, y);
+    } else if (cardId === 'C11') {
+      add(x, y);
+      add(x, y - 1);
+      add(x - 1, y);
+      add(x + 1, y);
+      add(x, y + 1);
+    } else if (cardId === 'C12') {
+      add(x, y);
+      add(x - 1, y - 1);
+      add(x + 1, y - 1);
+      add(x - 1, y + 1);
+      add(x + 1, y + 1);
+    } else if (cardId === 'C14') {
+      add(x, y - 1);
+      add(x, y);
+      add(x, y + 1);
+    } else if (cardId === 'C15') {
+      add(x, y);
+      add(x + 1, y);
+      add(x, y + 1);
+      add(x + 1, y + 1);
+    } else if (cardId === 'C16') {
+      add(x, y);
+      add(x + 1, y);
+      add(x, y + 1);
+    } else if (cardId === 'C18') {
+      add(x, y);
+      add(x, y - 1);
+      add(x + 1, y);
+    } else if (cardId === 'C19') {
+      add(x, y);
+      add(x - 1, y);
+      add(x, y - 1);
+    } else if (cardId === 'C20') {
+      add(x, y);
+      add(x, y + 1);
+      add(x - 1, y);
+    } else if (cardId === 'C17') {
+      add(x, y);
+      add(x - 1, y);
+      add(x + 1, y);
+      add(x, y - 1);
+    } else if (cardId === 'C23') {
+      add(x, y);
+      add(x - 1, y);
+      add(x + 1, y);
+      add(x, y + 1);
+    } else if (cardId === 'C25') {
+      add(x, y);
+      add(x, y - 1);
+      add(x, y + 1);
+      add(x - 1, y);
+    } else if (cardId === 'C26') {
+      add(x, y);
+      add(x, y - 1);
+      add(x, y + 1);
+      add(x + 1, y);
+    } else {
+      add(x, y);
+    }
+
+    return [...new Set(positions.map(pos => pos.y * boardSize + pos.x))];
+  }
+
+  private buildPuzzleBattleCard(card: Card, index: number): string {
+    return `
+      <button class="card card--color puzzle-hand-card" type="button" data-card-index="${index}" title="${card.getName()} (${card.getId()})">
+        <div class="card-visual">
+          <div class="card-whole"><div class="card-whole-inner">${this.buildCardShellSvg('color')}</div></div>
+          <div class="horizontal-line"><div class="horizontal-line-inner"><svg class="line-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 654 3"><line stroke="black" stroke-width="3" x2="654" y1="1.5" y2="1.5" /></svg></div></div>
+          <div class="card-type-frame"><div class="card-type-frame-inner"><svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 221.422 76.8846"><path d="M193.673 1.5H2.92202L55.922 75.3846H219.922V28.5C215.607 10.7505 209.338 5.4729 193.673 1.5Z" fill="#00E050" stroke="black" stroke-width="3" /></svg></div></div>
+          <p class="special-text"><span class="special-text-inner">イロ</span></p>
+          <div class="card-header"><div class="card-header-inner"><svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 484.935 77"><g><path d="M1.5 29.5V75.5H481.5H482L428.5 1.5H28.5C11.5316 7.60056 5.68163 13.7925 1.5 29.5Z" fill="#474747" /><path d="M481.5 75.5H482M482 75.5H1.5V29.5C5.68163 13.7925 11.5316 7.60056 28.5 1.5H428.5L482 75.5Z" stroke="black" stroke-width="3" /></g></svg></div></div>
+          <div class="card-name"><p>${card.getName()}</p></div>
+          ${this.buildPuzzleStars()}
+          <div class="flavor-power-button"></div><div class="flavor-side-button-1"></div><div class="flavor-side-button-2"></div>
+          <div class="vertical-line-container"><div class="vertical-line-rotated"><div class="vertical-line"><div class="vertical-line-inner"><svg class="line-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 77 6"><line stroke="black" stroke-width="6" x2="77" y1="3" y2="3" /></svg></div></div></div></div>
+          <div class="card-description-box"></div>
+          <div class="color-card-pattern-wrap"><div class="color-card-pattern">${this.buildPuzzleColorPattern(card.getId())}</div></div>
+        </div>
+      </button>
+    `;
+  }
+
+  private buildCardShellSvg(kind: 'color'): string {
+    const color = kind === 'color' ? '#1bbf4a' : '#1bbf4a';
+    const gradId = `puzzle-card-grad-${Math.random().toString(36).slice(2)}`;
+    return `<svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 657.963 311"><path d="M623.963 3H34C16.8792 3 3 16.8792 3 34V277C3 294.121 16.8792 308 34 308H623.963C641.083 308 654.963 294.121 654.963 277V34C654.963 16.8792 641.083 3 623.963 3Z" fill="url(#${gradId})" stroke="black" stroke-width="6" /><defs><linearGradient gradientUnits="userSpaceOnUse" id="${gradId}" x1="60" x2="643" y1="380.5" y2="-53"><stop offset="0.719918" stop-color="#474747" /><stop offset="0.72034" stop-color="${color}" /></linearGradient></defs></svg>`;
+  }
+
+  private buildPuzzleStars(): string {
+    return `
+      <div class="star-container star-1"><div class="star-inner">${this.buildStarSvg(true)}</div></div>
+      <div class="star-container star-3"><div class="star-inner">${this.buildStarSvg(false)}</div></div>
+      <div class="star-container star-2"><div class="star-inner">${this.buildStarSvg(false)}</div></div>
+    `;
+  }
+
+  private buildStarSvg(filled: boolean): string {
+    return `<svg class="star-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 34.238 32.5623"><path d="M20.2089 12.7471L20.4335 13.4375H31.161L23.0702 19.3154L22.4823 19.7422L22.7069 20.4336L25.7968 29.9434L17.7069 24.0664L17.119 23.6396L16.5311 24.0664L8.44031 29.9434L11.5311 20.4336L11.7557 19.7422L11.1678 19.3154L3.07702 13.4375H13.8046L14.0292 12.7471L17.119 3.23633L20.2089 12.7471Z" stroke="#F1FF2C" stroke-width="2" fill="${filled ? '#F1FF2C' : '#474747'}" /></svg>`;
+  }
+
+  private buildPuzzleColorPattern(cardId: CardId): string {
+    const patterns: Partial<Record<CardId, number[]>> = {
+      C03: [11, 12, 13],
+      C11: [7, 11, 12, 13, 17],
+      C12: [6, 8, 12, 16, 18],
+      C13: [11, 12, 13],
+      C14: [7, 12, 17],
+      C15: [12, 13, 17, 18],
+      C16: [12, 13, 17],
+      C17: [7, 11, 12, 13],
+      C18: [7, 12, 13],
+      C19: [7, 11, 12],
+      C20: [11, 12, 17],
+      C23: [11, 12, 13, 17],
+      C25: [7, 11, 12, 17],
+      C26: [7, 12, 13, 17]
+    };
+    const lit = new Set<number>(patterns[cardId] ?? [12]);
+    const cells = Array.from({ length: 25 }, (_, i) => {
+      const x = 15 + (i % 5) * 14;
+      const y = 15 + Math.floor(i / 5) * 14;
+      const isCenter = lit.has(i);
+      return `<rect x="${x}" y="${y}" width="13" height="13" fill="${isCenter ? '#3cff00' : '#0b0c0b'}" stroke="#3cff00" stroke-width="${isCenter ? '1.25' : '0.75'}" />`;
+    }).join('');
+    return `<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">${cells}</svg>`;
+  }
+
+  private attachPuzzleCellHandlers(
+    getSelected: () => number | null,
+    setPending: (value: number) => void
+  ): void {
+    this.root.querySelectorAll<HTMLElement>('#puzzle-current-grid .puzzle-cell').forEach((cell) => {
+      const preview = () => {
+        const selected = getSelected();
+        if (selected === null) return;
+        const index = Number(cell.dataset.cellIndex);
+        setPending(index);
+      };
+      cell.addEventListener('click', preview);
+      cell.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault();
+          preview();
+        }
+      });
+    });
+  }
+
+  private showPuzzleResult(level: number, success: boolean): void {
+    const overlay = this.root.querySelector<HTMLElement>('#puzzle-result-overlay');
+    if (!overlay || !overlay.classList.contains('hidden')) return;
+    const nextLevel = this.puzzleLevels.find(config => config.level === level + 1);
+    const levelPage = Math.floor((level - 1) / 10);
+    overlay.className = `puzzle-result-overlay puzzle-result-overlay--${success ? 'success' : 'failure'}`;
+    overlay.innerHTML = `
+      <div class="puzzle-result-panel">
+        <div class="puzzle-result-title">${success ? 'INSPECTION COMPLETE' : 'INSPECTION FAILED'}</div>
+        <div class="puzzle-result-main">${success ? '検査合格' : '検査不合格'}</div>
+        <div class="puzzle-result-sub">${success ? '目標盤面と完全一致しました' : '提示盤面と一致していません'}</div>
+        <div class="setup-actions">
+          <button class="setup-secondary" id="puzzle-result-retry" type="button">リトライ</button>
+          <button class="setup-secondary" id="puzzle-result-levels" type="button">レベル選択</button>
+          ${success && nextLevel ? '<button class="setup-primary" id="puzzle-result-next" type="button">次のレベルへ</button>' : ''}
+        </div>
+      </div>
+    `;
+    this.root.querySelector<HTMLButtonElement>('#puzzle-result-retry')?.addEventListener('click', () => this.showPuzzleLevel(level));
+    this.root.querySelector<HTMLButtonElement>('#puzzle-result-next')?.addEventListener('click', () => {
+      if (nextLevel) this.showPuzzleLevel(nextLevel.level);
+    });
+    this.root.querySelector<HTMLButtonElement>('#puzzle-result-levels')?.addEventListener('click', () => this.showPuzzleLevelSelect(levelPage));
+  }
+
+  private attachPuzzleCardAutoScroll(): void {
+    const strip = this.root.querySelector<HTMLElement>('#puzzle-card-strip');
+    if (!strip) return;
+    let scrollDir = 0;
+    let raf = 0;
+    const step = () => {
+      if (scrollDir !== 0) {
+        strip.scrollLeft += scrollDir * 10;
+        raf = window.requestAnimationFrame(step);
+      }
+    };
+    const stop = () => {
+      scrollDir = 0;
+      if (raf) window.cancelAnimationFrame(raf);
+      raf = 0;
+    };
+    strip.addEventListener('mousemove', (ev) => {
+      const rect = strip.getBoundingClientRect();
+      const edge = Math.max(90, rect.width * 0.12);
+      const nextDir = ev.clientX - rect.left < edge ? -1 : rect.right - ev.clientX < edge ? 1 : 0;
+      if (nextDir === scrollDir) return;
+      stop();
+      scrollDir = nextDir;
+      if (scrollDir !== 0) raf = window.requestAnimationFrame(step);
+    });
+    strip.addEventListener('mouseleave', stop);
+  }
+
+  private showBattleSetup(): void {
     const defaults = { boardSize: 5, totalTurns: 15, cpuDifficulty: 'normal' as const };
     const allCards = CardFactory.createAllCards();
     const sortedCards = [...allCards].sort((a, b) => {
@@ -4068,7 +4657,7 @@ class ScreenFlow {
     const selected: string[] = [];
 
     this.root.innerHTML = `
-      <div class="screen" data-screen="free-setup">
+      <div class="screen" data-screen="battle-setup">
         <div class="setup-panel">
           <div class="setup-title">FREE MODE</div>
           <div class="setup-sub">対戦条件をカスタマイズしてから開始します</div>
@@ -4076,7 +4665,7 @@ class ScreenFlow {
           <div class="setup-grid">
             <div class="setup-field">
               <div class="setup-label">CPU strength</div>
-              <select id="free-cpu">
+              <select id="battle-cpu">
                 <option value="easy">Easy</option>
                 <option value="normal" selected>Normal</option>
                 <option value="hard">Hard</option>
@@ -4084,7 +4673,7 @@ class ScreenFlow {
             </div>
             <div class="setup-field">
               <div class="setup-label">Board size</div>
-              <select id="free-board">
+              <select id="battle-board">
                 <option value="3">3×3</option>
                 <option value="4">4×4</option>
                 <option value="5" selected>5×5</option>
@@ -4094,18 +4683,18 @@ class ScreenFlow {
             </div>
             <div class="setup-field">
               <div class="setup-label">Turns</div>
-              <input id="free-turns" type="number" min="1" max="30" value="15" />
+              <input id="battle-turns" type="number" min="${ScreenFlow.minBattleTurns}" max="30" value="15" />
             </div>
 
             <div class="setup-field setup-cards">
               <div class="setup-label">Cards (optional)</div>
               <div class="setup-row">
-                <select id="free-card-select">
+                <select id="battle-card-select">
                   <option value="">カードを選択（任意）</option>
                 </select>
-                <button class="setup-add-btn" id="free-card-add" type="button">追加</button>
+                <button class="setup-add-btn" id="battle-card-add" type="button">追加</button>
               </div>
-              <div class="setup-selected" id="free-selected"></div>
+              <div class="setup-selected" id="battle-selected"></div>
               <div class="setup-help">
                 選択したカードが <b>ターン数より少ない</b> 場合は、足りない分をランダムで補完します。<br/>
                 何も選ばなければ、すべてランダムデッキになります。
@@ -4114,14 +4703,35 @@ class ScreenFlow {
           </div>
 
           <div class="setup-actions">
-            <button class="setup-secondary" id="free-back" type="button">戻る</button>
-            <button class="setup-primary" id="free-start" type="button">この設定で開始</button>
+            <button class="setup-secondary" id="battle-back" type="button">戻る</button>
+            <button class="setup-primary" id="battle-start" type="button">この設定で開始</button>
           </div>
         </div>
       </div>
     `;
 
-    const cardSelect = this.root.querySelector<HTMLSelectElement>('#free-card-select')!;
+    const setupTitle = this.root.querySelector<HTMLElement>('.setup-title');
+    if (setupTitle) setupTitle.textContent = 'BATTLE SETUP';
+    const setupSub = this.root.querySelector<HTMLElement>('.setup-sub');
+    if (setupSub) setupSub.textContent = '対戦条件を設定して発光床バトルを開始します';
+    const cpuField = this.root.querySelector<HTMLElement>('.setup-field');
+    if (cpuField) {
+      cpuField.innerHTML = `
+        <div class="setup-label">CPU level</div>
+        <input id="battle-cpu-level" type="number" min="1" max="20" value="10" />
+        <div class="setup-help">1: やさしい / 20: 最高難度</div>
+      `;
+    }
+    const startBtn = this.root.querySelector<HTMLButtonElement>('#battle-start');
+    if (startBtn) startBtn.textContent = 'バトル開始';
+
+    const turnsInput = this.root.querySelector<HTMLInputElement>('#battle-turns')!;
+    turnsInput.addEventListener('change', () => {
+      const turns = parseInt(turnsInput.value || `${defaults.totalTurns}`, 10) || defaults.totalTurns;
+      turnsInput.value = `${Math.max(ScreenFlow.minBattleTurns, Math.min(30, turns))}`;
+    });
+
+    const cardSelect = this.root.querySelector<HTMLSelectElement>('#battle-card-select')!;
     for (const card of sortedCards) {
       const opt = document.createElement('option');
       opt.value = card.getId();
@@ -4129,7 +4739,7 @@ class ScreenFlow {
       cardSelect.appendChild(opt);
     }
 
-    const selectedEl = this.root.querySelector<HTMLElement>('#free-selected')!;
+    const selectedEl = this.root.querySelector<HTMLElement>('#battle-selected')!;
     const renderSelected = () => {
       if (selected.length === 0) {
         selectedEl.innerHTML = '<div class="setup-help">選択されたカードはありません</div>';
@@ -4154,7 +4764,7 @@ class ScreenFlow {
     };
     renderSelected();
 
-    const addBtn = this.root.querySelector<HTMLButtonElement>('#free-card-add')!;
+    const addBtn = this.root.querySelector<HTMLButtonElement>('#battle-card-add')!;
     addBtn.addEventListener('click', () => {
       if (!cardSelect.value) return;
       selected.push(cardSelect.value);
@@ -4162,22 +4772,23 @@ class ScreenFlow {
       renderSelected();
     });
 
-    this.root.querySelector<HTMLButtonElement>('#free-back')!.addEventListener('click', () => {
+    this.root.querySelector<HTMLButtonElement>('#battle-back')!.addEventListener('click', () => {
       this.showMenu();
     });
 
-    this.root.querySelector<HTMLButtonElement>('#free-start')!.addEventListener('click', () => {
-      const cpuDifficulty = (this.root.querySelector<HTMLSelectElement>('#free-cpu')!.value || defaults.cpuDifficulty) as
-        | 'easy'
-        | 'normal'
-        | 'hard';
-      const boardSize = parseInt(this.root.querySelector<HTMLSelectElement>('#free-board')!.value || `${defaults.boardSize}`);
-      const totalTurns = parseInt((this.root.querySelector<HTMLInputElement>('#free-turns')!.value || `${defaults.totalTurns}`));
+    this.root.querySelector<HTMLButtonElement>('#battle-start')!.addEventListener('click', () => {
+      const cpuLevelInput = this.root.querySelector<HTMLInputElement>('#battle-cpu-level');
+      const cpuLevel = Math.max(1, Math.min(20, parseInt(cpuLevelInput?.value || '10', 10) || 10));
+      const cpuDifficulty = defaults.cpuDifficulty;
+      const boardSize = parseInt(this.root.querySelector<HTMLSelectElement>('#battle-board')!.value || `${defaults.boardSize}`);
+      const rawTotalTurns = parseInt(turnsInput.value || `${defaults.totalTurns}`, 10);
+      const totalTurns = Math.max(ScreenFlow.minBattleTurns, Math.min(30, rawTotalTurns || defaults.totalTurns));
 
       const settings: GameStartSettings = {
         boardSize,
         totalTurns,
         cpuDifficulty,
+        cpuLevel,
         playerBIsCPU: true,
         cardIds: selected.length > 0 ? [...selected] : null
       };
@@ -4189,7 +4800,7 @@ class ScreenFlow {
       window.setTimeout(() => {
         this.isTransitioning = false;
         this.root.innerHTML = '';
-        this.onStart('free', settings);
+        this.onStart('battle', settings);
       }, 520);
     });
   }
@@ -4230,10 +4841,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const flow = new ScreenFlow(screenRoot, (mode, settings) => {
     const startSettings: GameStartSettings =
       mode === 'tutorial'
-        ? { boardSize: 3, totalTurns: 5, playerBIsCPU: true, cpuDifficulty: 'easy' }
-        : mode === 'story'
-          ? { playerBIsCPU: true, cpuDifficulty: 'normal' }
-          : { playerBIsCPU: true, ...settings };
+        ? { boardSize: 3, totalTurns: 5, playerBIsCPU: true, cpuDifficulty: 'easy', cpuLevel: 1 }
+        : { playerBIsCPU: true, ...settings };
 
     app?.classList.remove('game-hidden');
 

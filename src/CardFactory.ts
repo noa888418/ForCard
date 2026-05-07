@@ -22,9 +22,15 @@ export class CardFactory {
     cards.push(new ColorCards.C15_Block2x2());
     cards.push(new ColorCards.C16_LShape());
     cards.push(new ColorCards.C17_TShape());
+    cards.push(new ColorCards.C18_LShapeUpRight());
+    cards.push(new ColorCards.C19_LShapeUpLeft());
+    cards.push(new ColorCards.C20_LShapeDownLeft());
     cards.push(new ColorCards.C21_HorizontalLine());
     cards.push(new ColorCards.C22_VerticalLine());
+    cards.push(new ColorCards.C23_TShapeDown());
     cards.push(new ColorCards.C24_Block3x3());
+    cards.push(new ColorCards.C25_TShapeLeft());
+    cards.push(new ColorCards.C26_TShapeRight());
 
     // 強化カード（Fxx）
     cards.push(new ColorCards.F01_SinglePointBoost());
@@ -153,4 +159,3 @@ export class CardFactory {
     return allCards.find(card => card.getId() === id) || null;
   }
 }
-

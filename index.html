@@ -7,16 +7,13 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title>ForCard - 戦略カードゲーム</title>
-    <link rel="stylesheet" href="styles.css?v=48">
+    <link rel="stylesheet" href="styles.css?v=65">
 </head>
 <body>
     <div id="screen-root"></div>
     <div id="app">
         <div id="game-container">
             <div id="controls" class="controls-column">
-                <button id="resolve-btn" class="ctrl-btn ctrl-btn--resolve" title="決定" aria-label="決定" disabled>
-                    <span class="ctrl-btn__icon ctrl-btn__icon--play" aria-hidden="true"></span>
-                </button>
                 <button id="retry-btn" class="ctrl-btn ctrl-btn--retry hidden" title="選びなおす" aria-label="選びなおす">
                     <span class="ctrl-btn__icon ctrl-btn__icon--reload" aria-hidden="true"></span>
                 </button>
@@ -67,7 +64,7 @@
             <div id="player-a-hand-column" class="player-a-hand-column">
                 <div id="hand-a" class="hand-carousel-shell">
                     <div class="hand-carousel-stage">
-                        <button type="button" id="hand-deck-trigger" class="card-picker-ring" aria-label="山札一覧を開く" title="山札一覧">
+                        <button type="button" id="hand-deck-trigger" class="card-picker-ring" aria-label="制御端末一覧を開く" title="制御端末一覧">
                             <span class="card-picker-ring__armor" aria-hidden="true"></span>
                             <span class="card-picker-ring__tick-ring" aria-hidden="true"></span>
                             <span class="card-picker-ring__card-rail" aria-hidden="true"></span>
@@ -114,7 +111,19 @@
             <div class="modal-content">
                 <h2>ゲーム終了</h2>
                 <div id="result-content"></div>
-                <button id="close-result-btn">閉じる</button>
+                <div class="result-actions">
+                    <button id="result-log-btn" class="result-action-btn result-action-btn--log" type="button">ログをみる</button>
+                    <button id="result-retry-btn" class="result-action-btn result-action-btn--retry" type="button">もう一度</button>
+                    <button id="result-title-btn" class="result-action-btn result-action-btn--title" type="button">タイトルに戻る</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="result-log-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="result-log-title">
+            <div class="modal-content result-log-modal-content">
+                <button id="result-log-close" class="result-log-close" type="button" aria-label="ログを閉じる">×</button>
+                <h2 id="result-log-title">BATTLE LOG</h2>
+                <div id="result-log-content" class="result-log-content"></div>
             </div>
         </div>
 
@@ -125,7 +134,7 @@
                     <span class="hand-deck-drawer-tab__label">LOAD</span>
                     <span class="hand-deck-drawer-tab__chevron" aria-hidden="true"></span>
                 </button>
-                <h2 id="hand-deck-modal-title">山札</h2>
+                <h2 id="hand-deck-modal-title">制御端末</h2>
                 <p class="hand-deck-modal-hint">CARD STORAGE / TAP TO LOAD</p>
                 <div id="hand-deck-grid" class="hand-deck-grid"></div>
             </div>
@@ -143,6 +152,6 @@
         </div>
     </div>
 
-    <script type="module" src="dist/main.js?v=36"></script>
+    <script type="module" src="dist/main.js?v=52"></script>
 </body>
 </html>
