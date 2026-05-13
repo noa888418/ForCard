@@ -4030,7 +4030,17 @@ class ScreenFlow {
     { level: 17, boardSize: 4, cardIds: ['C11', 'C01', 'C01'], target: [0, 1, 0, 0, 1, 2, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1] },
     { level: 18, boardSize: 4, cardIds: ['C12', 'C03', 'C01'], target: [1, 0, 1, 0, 0, 1, 0, 0, 2, 1, 2, 0, 0, 0, 0, 1] },
     { level: 19, boardSize: 4, cardIds: ['C13', 'C14'], target: [0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0] },
-    { level: 20, boardSize: 5, cardIds: ['C11', 'C12', 'C01', 'C01'], target: [1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 2, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1] }
+    { level: 20, boardSize: 5, cardIds: ['C11', 'C12', 'C01', 'C01'], target: [1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 2, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1] },
+    { level: 21, boardSize: 4, cardIds: ['C13', 'C14', 'F01'], target: [0, 1, 0, 0, 1, 4, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0] },
+    { level: 22, boardSize: 4, cardIds: ['C15', 'F07'], target: [0, 0, 0, 0, 0, 3, 3, 0, 0, 3, 3, 0, 0, 0, 0, 0] },
+    { level: 23, boardSize: 4, cardIds: ['C11', 'F05'], target: [0, 2, 0, 0, 2, 2, 2, 0, 0, 2, 0, 0, 0, 0, 0, 0] },
+    { level: 24, boardSize: 4, cardIds: ['C12', 'C14', 'F02'], target: [1, 0, 2, 0, 0, 2, 2, 0, 1, 0, 2, 0, 0, 0, 0, 0] },
+    { level: 25, boardSize: 5, cardIds: ['C13', 'C14', 'F02'], target: [0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 3, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0] },
+    { level: 26, boardSize: 5, cardIds: ['C15', 'C15', 'F07'], target: [0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 0, 3, 3, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 1, 0] },
+    { level: 27, boardSize: 5, cardIds: ['C11', 'C12', 'F05'], target: [0, 0, 0, 0, 0, 0, 1, 2, 1, 0, 0, 2, 3, 2, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0] },
+    { level: 28, boardSize: 5, cardIds: ['C21', 'C14', 'F10'], target: [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 3, 3, 4, 3, 3, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0] },
+    { level: 29, boardSize: 5, cardIds: ['C24', 'C11', 'F08', 'F05'], target: [0, 0, 0, 0, 0, 0, 2, 4, 2, 0, 0, 4, 4, 4, 0, 0, 2, 4, 2, 0, 0, 0, 0, 0, 0] },
+    { level: 30, boardSize: 5, cardIds: ['C24', 'F08', 'C21', 'F10'], target: [0, 0, 0, 0, 0, 0, 2, 2, 2, 0, 3, 5, 5, 5, 3, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0] }
   ];
 
   constructor(root: HTMLElement, onStart: (mode: ScreenMode, settings?: GameStartSettings) => void) {
@@ -4284,16 +4294,20 @@ class ScreenFlow {
 
   private showPuzzleLevel(levelNumber: number): void {
     const config = this.puzzleLevels.find(level => level.level === levelNumber) ?? this.puzzleLevels[0];
+    const orderedCardIds = [...config.cardIds].sort((a, b) => {
+      const order = (id: CardId) => id.startsWith('C') ? 0 : id.startsWith('F') ? 1 : 2;
+      return order(a) - order(b);
+    });
     const board = Array(config.boardSize * config.boardSize).fill(0) as number[];
-    const used = config.cardIds.map(() => false);
+    const used = orderedCardIds.map(() => false);
     let selectedCardIndex: number | null = 0;
     let pendingPositions: number[] = [];
     let applySelectedPuzzleCard = (originIndex: number) => {};
     const history: Array<{ board: number[]; used: boolean[]; selectedCardIndex: number | null }> = [];
-    const cards = config.cardIds
+    const cards = orderedCardIds
       .map(id => CardFactory.createCardById(id))
       .filter((card): card is Card => card !== null);
-    if (cards.length !== config.cardIds.length) return;
+    if (cards.length !== orderedCardIds.length) return;
 
     const renderBoard = () => {
       const current = this.root.querySelector<HTMLElement>('#puzzle-current-grid');
@@ -4302,7 +4316,7 @@ class ScreenFlow {
       const undoBtn = this.root.querySelector<HTMLButtonElement>('#puzzle-undo');
       if (current) current.innerHTML = this.buildPuzzleGrid(board, config.boardSize, true, pendingPositions);
       if (cardsLeft) cardsLeft.textContent = String(used.filter(v => !v).length);
-      if (turnState) turnState.textContent = `${used.filter(Boolean).length} / ${config.cardIds.length}`;
+      if (turnState) turnState.textContent = `${used.filter(Boolean).length} / ${orderedCardIds.length}`;
       if (undoBtn) undoBtn.disabled = history.length === 0;
       this.attachPuzzleCellHandlers(() => selectedCardIndex, value => {
         if (selectedCardIndex === null) return;
@@ -4385,11 +4399,12 @@ class ScreenFlow {
     });
     applySelectedPuzzleCard = (originIndex: number) => {
       if (selectedCardIndex === null || used[selectedCardIndex]) return;
-      pendingPositions = this.getPuzzleCardTargetIndexes(config.boardSize, cards[selectedCardIndex].getId(), originIndex);
-      if (pendingPositions.length === 0) return;
+      const effects = this.getPuzzleCardEffects(board, config.boardSize, cards[selectedCardIndex].getId(), originIndex);
+      pendingPositions = effects.map(effect => effect.index);
+      if (effects.length === 0) return;
       history.push({ board: [...board], used: [...used], selectedCardIndex });
-      for (const index of pendingPositions) {
-        board[index] += 1;
+      for (const effect of effects) {
+        board[effect.index] += effect.delta;
       }
       used[selectedCardIndex] = true;
       const next = used.findIndex(v => !v);
@@ -4422,6 +4437,31 @@ class ScreenFlow {
     }).join('');
   }
 
+  private getPuzzleCardEffects(board: number[], boardSize: number, cardId: CardId, originIndex: number): Array<{ index: number; delta: number }> {
+    const targetIndexes = this.getPuzzleCardTargetIndexes(boardSize, cardId, originIndex);
+    const ownOnly = (indexes: number[]) => indexes.filter(index => board[index] > 0);
+
+    if (cardId === 'F01') {
+      return board[originIndex] > 0 ? [{ index: originIndex, delta: 2 }] : [];
+    }
+    if (cardId === 'F02' || cardId === 'F05' || cardId === 'F06') {
+      return ownOnly(targetIndexes).map(index => ({ index, delta: 1 }));
+    }
+    if (cardId === 'F07') {
+      return ownOnly(targetIndexes).map(index => ({ index, delta: 2 }));
+    }
+    if (cardId === 'F08') {
+      return board
+        .map((value, index) => value > 0 ? { index, delta: 1 } : null)
+        .filter((effect): effect is { index: number; delta: number } => effect !== null);
+    }
+    if (cardId === 'F10' || cardId === 'F11') {
+      return ownOnly(targetIndexes).map(index => ({ index, delta: 2 }));
+    }
+
+    return targetIndexes.map(index => ({ index, delta: 1 }));
+  }
+
   private getPuzzleCardTargetIndexes(boardSize: number, cardId: CardId, originIndex: number): number[] {
     const x = originIndex % boardSize;
     const y = Math.floor(originIndex / boardSize);
@@ -4436,6 +4476,10 @@ class ScreenFlow {
       add(x - 1, y);
       add(x, y);
       add(x + 1, y);
+    } else if (cardId === 'C21' || cardId === 'F10') {
+      for (let px = 0; px < boardSize; px++) add(px, y);
+    } else if (cardId === 'C22' || cardId === 'F11') {
+      for (let py = 0; py < boardSize; py++) add(x, py);
     } else if (cardId === 'C11') {
       add(x, y);
       add(x, y - 1);
@@ -4452,11 +4496,28 @@ class ScreenFlow {
       add(x, y - 1);
       add(x, y);
       add(x, y + 1);
+    } else if (cardId === 'F02' || cardId === 'F05' || cardId === 'F06') {
+      add(x, y);
+      add(x, y - 1);
+      add(x, y + 1);
+      add(x - 1, y);
+      add(x + 1, y);
     } else if (cardId === 'C15') {
       add(x, y);
       add(x + 1, y);
       add(x, y + 1);
       add(x + 1, y + 1);
+    } else if (cardId === 'F07') {
+      add(x, y);
+      add(x + 1, y);
+      add(x, y + 1);
+      add(x + 1, y + 1);
+    } else if (cardId === 'C24') {
+      for (let py = y - 1; py <= y + 1; py++) {
+        for (let px = x - 1; px <= x + 1; px++) {
+          add(px, py);
+        }
+      }
     } else if (cardId === 'C16') {
       add(x, y);
       add(x + 1, y);
@@ -4501,27 +4562,34 @@ class ScreenFlow {
   }
 
   private buildPuzzleBattleCard(card: Card, index: number): string {
+    const isFort = card.getId().startsWith('F');
+    const kind = isFort ? 'fort' : 'color';
+    const typeFill = isFort ? '#FF0004' : '#00E050';
+    const typeLabel = isFort ? 'キョウカ' : 'イロ';
+    const bodyContent = isFort
+      ? `<p class="description-text">${card.getDescription()}</p>`
+      : `<div class="color-card-pattern-wrap"><div class="color-card-pattern">${this.buildPuzzleColorPattern(card.getId())}</div></div>`;
     return `
-      <button class="card card--color puzzle-hand-card" type="button" data-card-index="${index}" title="${card.getName()} (${card.getId()})">
+      <button class="card card--${kind} puzzle-hand-card" type="button" data-card-index="${index}" title="${card.getName()} (${card.getId()})">
         <div class="card-visual">
-          <div class="card-whole"><div class="card-whole-inner">${this.buildCardShellSvg('color')}</div></div>
+          <div class="card-whole"><div class="card-whole-inner">${this.buildCardShellSvg(kind)}</div></div>
           <div class="horizontal-line"><div class="horizontal-line-inner"><svg class="line-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 654 3"><line stroke="black" stroke-width="3" x2="654" y1="1.5" y2="1.5" /></svg></div></div>
-          <div class="card-type-frame"><div class="card-type-frame-inner"><svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 221.422 76.8846"><path d="M193.673 1.5H2.92202L55.922 75.3846H219.922V28.5C215.607 10.7505 209.338 5.4729 193.673 1.5Z" fill="#00E050" stroke="black" stroke-width="3" /></svg></div></div>
-          <p class="special-text"><span class="special-text-inner">イロ</span></p>
+          <div class="card-type-frame"><div class="card-type-frame-inner"><svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 221.422 76.8846"><path d="M193.673 1.5H2.92202L55.922 75.3846H219.922V28.5C215.607 10.7505 209.338 5.4729 193.673 1.5Z" fill="${typeFill}" stroke="black" stroke-width="3" /></svg></div></div>
+          <p class="special-text"><span class="special-text-inner">${typeLabel}</span></p>
           <div class="card-header"><div class="card-header-inner"><svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 484.935 77"><g><path d="M1.5 29.5V75.5H481.5H482L428.5 1.5H28.5C11.5316 7.60056 5.68163 13.7925 1.5 29.5Z" fill="#474747" /><path d="M481.5 75.5H482M482 75.5H1.5V29.5C5.68163 13.7925 11.5316 7.60056 28.5 1.5H428.5L482 75.5Z" stroke="black" stroke-width="3" /></g></svg></div></div>
           <div class="card-name"><p>${card.getName()}</p></div>
           ${this.buildPuzzleStars()}
           <div class="flavor-power-button"></div><div class="flavor-side-button-1"></div><div class="flavor-side-button-2"></div>
           <div class="vertical-line-container"><div class="vertical-line-rotated"><div class="vertical-line"><div class="vertical-line-inner"><svg class="line-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 77 6"><line stroke="black" stroke-width="6" x2="77" y1="3" y2="3" /></svg></div></div></div></div>
           <div class="card-description-box"></div>
-          <div class="color-card-pattern-wrap"><div class="color-card-pattern">${this.buildPuzzleColorPattern(card.getId())}</div></div>
+          ${bodyContent}
         </div>
       </button>
     `;
   }
 
-  private buildCardShellSvg(kind: 'color'): string {
-    const color = kind === 'color' ? '#1bbf4a' : '#1bbf4a';
+  private buildCardShellSvg(kind: 'color' | 'fort'): string {
+    const color = kind === 'fort' ? '#FF3134' : '#1bbf4a';
     const gradId = `puzzle-card-grad-${Math.random().toString(36).slice(2)}`;
     return `<svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 657.963 311"><path d="M623.963 3H34C16.8792 3 3 16.8792 3 34V277C3 294.121 16.8792 308 34 308H623.963C641.083 308 654.963 294.121 654.963 277V34C654.963 16.8792 641.083 3 623.963 3Z" fill="url(#${gradId})" stroke="black" stroke-width="6" /><defs><linearGradient gradientUnits="userSpaceOnUse" id="${gradId}" x1="60" x2="643" y1="380.5" y2="-53"><stop offset="0.719918" stop-color="#474747" /><stop offset="0.72034" stop-color="${color}" /></linearGradient></defs></svg>`;
   }
@@ -4553,7 +4621,17 @@ class ScreenFlow {
       C20: [11, 12, 17],
       C23: [11, 12, 13, 17],
       C25: [7, 11, 12, 17],
-      C26: [7, 12, 13, 17]
+      C21: [10, 11, 12, 13, 14],
+      C22: [2, 7, 12, 17, 22],
+      C24: [6, 7, 8, 11, 12, 13, 16, 17, 18],
+      C26: [7, 12, 13, 17],
+      F01: [12],
+      F02: [7, 11, 12, 13, 17],
+      F05: [7, 11, 12, 13, 17],
+      F07: [12, 13, 17, 18],
+      F08: [6, 7, 8, 11, 12, 13, 16, 17, 18],
+      F10: [10, 11, 12, 13, 14],
+      F11: [2, 7, 12, 17, 22]
     };
     const lit = new Set<number>(patterns[cardId] ?? [12]);
     const cells = Array.from({ length: 25 }, (_, i) => {
