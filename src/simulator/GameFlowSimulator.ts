@@ -27,11 +27,8 @@ export class GameFlowSimulator {
     // 基本的なゲーム進行テスト
     this.testBasicGameFlow();
     
-    // S04（ダブルアクション）のテスト
-    this.testS04_DoubleAction();
-    
-    // S05（スペシャルジャマー）のテスト
-    this.testS05_SpecialJammer();
+    // S04（スペシャルジャマー）のテスト
+    this.testS04_SpecialJammer();
 
     const passed = this.results.filter(r => r.passed).length;
     const failed = this.results.filter(r => !r.passed).length;
@@ -82,11 +79,11 @@ export class GameFlowSimulator {
   }
 
   /**
-   * S04（ダブルアクション）のテスト
+   * S04（スペシャルジャマー）のテスト
    */
-  private testS04_DoubleAction(): void {
+  private testS04_SpecialJammer(): void {
     const result: GameFlowTestResult = {
-      testName: 'S04: ダブルアクション',
+      testName: 'S04: スペシャルジャマー',
       passed: true,
       errors: [],
       warnings: []
@@ -110,7 +107,7 @@ export class GameFlowSimulator {
         return;
       }
 
-      // S04をプレイ
+      // S04の選択テスト
       const selection: CardSelection = {
         cardId: 'S04',
         targetPosition: { x: 2, y: 2 }
@@ -122,60 +119,7 @@ export class GameFlowSimulator {
         result.passed = false;
       }
 
-      // ダブルアクションが有効になっているか確認
-      // （GameManagerにisDoubleActionActiveメソッドがあることを前提）
-      result.warnings.push('ダブルアクションの詳細な動作確認は手動テストが必要です');
-
-    } catch (error) {
-      result.errors.push(`エラー: ${error instanceof Error ? error.message : String(error)}`);
-      result.passed = false;
-    }
-
-    this.results.push(result);
-  }
-
-  /**
-   * S05（スペシャルジャマー）のテスト
-   */
-  private testS05_SpecialJammer(): void {
-    const result: GameFlowTestResult = {
-      testName: 'S05: スペシャルジャマー',
-      passed: true,
-      errors: [],
-      warnings: []
-    };
-
-    try {
-      // プレイヤーを作成
-      const deck = CardFactory.createDefaultDeck();
-      const playerA = new Player('A', deck);
-      const playerB = new Player('B', deck);
-      const gameManager = new GameManager(playerA, playerB, 5, 15);
-
-      // S05カードを取得
-      const allCards = CardFactory.createAllCards();
-      const s05Card = allCards.find(c => c.getId() === 'S05');
-      
-      if (!s05Card) {
-        result.errors.push('S05カードが見つかりません');
-        result.passed = false;
-        this.results.push(result);
-        return;
-      }
-
-      // S05の選択テスト
-      const selection: CardSelection = {
-        cardId: 'S05',
-        targetPosition: { x: 2, y: 2 }
-      };
-
-      const canSelect = gameManager.selectCard('A', selection);
-      if (!canSelect) {
-        result.errors.push('S05の選択に失敗しました');
-        result.passed = false;
-      }
-
-      result.warnings.push('S05の相互干渉テスト（相手の特殊カード無効化など）は手動テストが必要です');
+      result.warnings.push('S04の相互干渉テスト（相手の特殊カード無効化など）は手動テストが必要です');
 
     } catch (error) {
       result.errors.push(`エラー: ${error instanceof Error ? error.message : String(error)}`);
@@ -185,4 +129,3 @@ export class GameFlowSimulator {
     this.results.push(result);
   }
 }
-

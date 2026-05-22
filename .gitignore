@@ -5,6 +5,9 @@ dist/
 *.tsbuildinfo
 release/
 win-unpacked/
+tools/flow-analysis-output/
+flow-analysis.mjs
+tools/flow-analysis-ui.html
 
 
 

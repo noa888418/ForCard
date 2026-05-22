@@ -3,6 +3,76 @@ import { FortCard } from './FortCard.js';
 import { Position, PlayerId } from '../types.js';
 import { Board } from '../Board.js';
 
+type PositionFactory = (board: Board, position: Position, playerId: PlayerId) => Position[];
+
+const uniqueValidPositions = (board: Board, positions: Position[]): Position[] => {
+  const seen = new Set<string>();
+  const valid: Position[] = [];
+  for (const pos of positions) {
+    if (!board.isValidPosition(pos.x, pos.y)) continue;
+    const key = `${pos.x},${pos.y}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    valid.push(pos);
+  }
+  return valid;
+};
+
+const rectPositions = (board: Board, x0: number, y0: number, width: number, height: number): Position[] => {
+  const positions: Position[] = [];
+  for (let y = y0; y < y0 + height; y++) {
+    for (let x = x0; x < x0 + width; x++) {
+      positions.push({ x, y });
+    }
+  }
+  return uniqueValidPositions(board, positions);
+};
+
+const offsetsFrom = (board: Board, position: Position, offsets: Position[]): Position[] => {
+  return uniqueValidPositions(board, offsets.map(offset => ({
+    x: position.x + offset.x,
+    y: position.y + offset.y
+  })));
+};
+
+export class ConfigurableColorCard extends ColorCard {
+  private minBoardSize: number;
+  private maxBoardSize: number;
+  private positionFactory: PositionFactory;
+  private canPlayFactory?: PositionFactory;
+
+  constructor(
+    id: `C${number}`,
+    name: string,
+    description: string,
+    power: number,
+    minBoardSize: number,
+    maxBoardSize: number,
+    positionFactory: PositionFactory,
+    canPlayFactory?: PositionFactory
+  ) {
+    super(id, name, description, power);
+    this.minBoardSize = minBoardSize;
+    this.maxBoardSize = maxBoardSize;
+    this.positionFactory = positionFactory;
+    this.canPlayFactory = canPlayFactory;
+  }
+
+  supportsBoardSize(boardSize: number): boolean {
+    return boardSize >= this.minBoardSize && boardSize <= this.maxBoardSize;
+  }
+
+  canPlay(board: Board, position: Position, playerId: PlayerId): boolean {
+    if (!this.supportsBoardSize(board.getSize()) || !super.canPlay(board, position, playerId)) return false;
+    return this.canPlayFactory ? this.canPlayFactory(board, position, playerId).length > 0 : true;
+  }
+
+  getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
+    if (!this.supportsBoardSize(board.getSize())) return [];
+    return uniqueValidPositions(board, this.positionFactory(board, position, playerId));
+  }
+}
+
 // 弱い色カード（C01〜C10）
 export class C01_SinglePoint extends ColorCard {
   constructor() {
@@ -684,6 +754,128 @@ export class C24_Block3x3 extends ColorCard {
     }
     return positions;
   }
+}
+
+export function createAdditionalColorCards(): ColorCard[] {
+  return [
+    // ① 色ポイント少 / 適用範囲広
+    new ConfigurableColorCard('C27', '外周なぞり', '指定した辺1つの全マスの色ポイントを+1', 1, 5, 7, (board, p) => {
+      const size = board.getSize();
+      if (p.y === 0 || p.y === size - 1) return rectPositions(board, 0, p.y, size, 1);
+      if (p.x === 0 || p.x === size - 1) return rectPositions(board, p.x, 0, 1, size);
+      return rectPositions(board, 0, p.y, size, 1);
+    }, (board, p) => (p.x === 0 || p.y === 0 || p.x === board.getSize() - 1 || p.y === board.getSize() - 1) ? [p] : []),
+    new ConfigurableColorCard('C28', '半列塗り', '指定列の上半分または下半分の色ポイントを+1', 1, 4, 7, (board, p) => {
+      const size = board.getSize();
+      const start = p.y < size / 2 ? 0 : Math.floor(size / 2);
+      const end = p.y < size / 2 ? Math.ceil(size / 2) : size;
+      return rectPositions(board, p.x, start, 1, end - start);
+    }),
+    new ConfigurableColorCard('C29', '半行塗り', '指定行の左半分または右半分の色ポイントを+1', 1, 4, 7, (board, p) => {
+      const size = board.getSize();
+      const start = p.x < size / 2 ? 0 : Math.floor(size / 2);
+      const end = p.x < size / 2 ? Math.ceil(size / 2) : size;
+      return rectPositions(board, start, p.y, end - start, 1);
+    }),
+    new ConfigurableColorCard('C30', '大十字', '中心+上下左右2マスまでの色ポイントを+1', 1, 5, 7, (board, p) =>
+      offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 0, y: -1 }, { x: 0, y: -2 }, { x: 0, y: 1 }, { x: 0, y: 2 }, { x: -1, y: 0 }, { x: -2, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }])),
+    new ConfigurableColorCard('C31', '大斜め十字', '中心+斜め2マスまでの色ポイントを+1', 1, 5, 7, (board, p) =>
+      offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: -1, y: -1 }, { x: -2, y: -2 }, { x: 1, y: -1 }, { x: 2, y: -2 }, { x: -1, y: 1 }, { x: -2, y: 2 }, { x: 1, y: 1 }, { x: 2, y: 2 }])),
+    new ConfigurableColorCard('C32', '周囲リング', '指定マスの周囲8マスのみ色ポイントを+1。中心は変化なし', 1, 5, 7, (board, p) =>
+      offsetsFrom(board, p, [{ x: -1, y: -1 }, { x: 0, y: -1 }, { x: 1, y: -1 }, { x: -1, y: 0 }, { x: 1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: 1 }, { x: 1, y: 1 }])),
+    new ConfigurableColorCard('C33', '端から波', '端マスから内側方向へ最大4マスの色ポイントを+1', 1, 4, 7, (board, p) => {
+      const size = board.getSize();
+      if (p.x === 0) return rectPositions(board, 0, p.y, 4, 1);
+      if (p.x === size - 1) return rectPositions(board, size - 4, p.y, 4, 1);
+      if (p.y === 0) return rectPositions(board, p.x, 0, 1, 4);
+      return rectPositions(board, p.x, Math.max(0, size - 4), 1, 4);
+    }, (board, p) => (p.x === 0 || p.y === 0 || p.x === board.getSize() - 1 || p.y === board.getSize() - 1) ? [p] : []),
+    new ConfigurableColorCard('C34', '角扇形', '角寄り3×3内の6マスの色ポイントを+1', 1, 4, 7, (board, p) => {
+      const size = board.getSize();
+      const sx = p.x < size / 2 ? 0 : size - 3;
+      const sy = p.y < size / 2 ? 0 : size - 3;
+      return rectPositions(board, sx, sy, 3, 3).filter(pos => Math.abs(pos.x - p.x) + Math.abs(pos.y - p.y) <= 4).slice(0, 6);
+    }),
+    new ConfigurableColorCard('C35', '市松薄塗り', '指定3×3内の市松模様5マスの色ポイントを+1', 1, 5, 7, (board, p) =>
+      rectPositions(board, p.x - 1, p.y - 1, 3, 3).filter(pos => (pos.x + pos.y) % 2 === (p.x + p.y) % 2)),
+    new ConfigurableColorCard('C36', '広域散布', '指定マスからマンハッタン距離2の外周マスの色ポイントを+1', 1, 5, 7, (board, p) =>
+      offsetsFrom(board, p, [{ x: 0, y: -2 }, { x: -1, y: -1 }, { x: 1, y: -1 }, { x: -2, y: 0 }, { x: 2, y: 0 }, { x: -1, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 2 }])),
+
+    // ② 色ポイント多 / 適用範囲狭
+    new ConfigurableColorCard('C37', '強単点塗り', '任意の1マスの色ポイントを+2', 2, 3, 7, (board, p) => [p]),
+    new ConfigurableColorCard('C38', '極点塗り', '任意の1マスの色ポイントを+3', 3, 3, 7, (board, p) => [p]),
+    new ConfigurableColorCard('C39', '敵陣穿ち', '任意の1マスの色ポイントを+3', 3, 3, 7, (board, p) => [p]),
+    new ConfigurableColorCard('C40', '中立確保', '任意の1マスの色ポイントを+2', 2, 3, 7, (board, p) => [p]),
+    new ConfigurableColorCard('C41', '双点強化', '横隣接2マスの色ポイントを+2', 2, 3, 7, (board, p) => offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 1, y: 0 }])),
+    new ConfigurableColorCard('C42', '斜め双点強化', '斜め隣接2マスの色ポイントを+2', 2, 3, 7, (board, p) => offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 1, y: 1 }])),
+    new ConfigurableColorCard('C43', '前線突破', '縦隣接2マスの色ポイントを+3', 3, 4, 7, (board, p) => offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 0, y: -1 }])),
+    new ConfigurableColorCard('C44', '要点奪取', '任意の1マスの色ポイントを+2', 2, 3, 7, (board, p) => [p]),
+    new ConfigurableColorCard('C45', '角杭打ち', '角マス1つの色ポイントを+3', 3, 3, 7, (board, p) => [p], (board, p) => {
+      const size = board.getSize();
+      return ((p.x === 0 || p.x === size - 1) && (p.y === 0 || p.y === size - 1)) ? [p] : [];
+    }),
+    new ConfigurableColorCard('C46', '端杭打ち', '辺上マス1つの色ポイントを+3', 3, 3, 7, (board, p) => [p], (board, p) =>
+      (p.x === 0 || p.y === 0 || p.x === board.getSize() - 1 || p.y === board.getSize() - 1) ? [p] : []),
+
+    // ③ 両方そこそこ
+    new ConfigurableColorCard('C47', '強三連横', '横3マスの色ポイントを+2', 2, 4, 7, (board, p) => offsetsFrom(board, p, [{ x: -1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 0 }])),
+    new ConfigurableColorCard('C48', '強三連縦', '縦3マスの色ポイントを+2', 2, 4, 7, (board, p) => offsetsFrom(board, p, [{ x: 0, y: -1 }, { x: 0, y: 0 }, { x: 0, y: 1 }])),
+    new ConfigurableColorCard('C49', '小十字強化', '中心+上下左右から2方向の色ポイントを+2', 2, 4, 7, (board, p) => offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 0, y: -1 }, { x: 1, y: 0 }])),
+    new ConfigurableColorCard('C50', '小斜め十字強化', '中心+斜め2方向の色ポイントを+2', 2, 4, 7, (board, p) => offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: -1, y: -1 }, { x: 1, y: -1 }])),
+    new ConfigurableColorCard('C51', '2×2強塗り', '2×2ブロック4マスの色ポイントを+2', 2, 4, 7, (board, p) => rectPositions(board, p.x, p.y, 2, 2)),
+    new ConfigurableColorCard('C52', 'L字強塗り', 'L字3マスの色ポイントを+2', 2, 4, 7, (board, p) => offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }])),
+    new ConfigurableColorCard('C53', 'T字強塗り', 'T字4マスの色ポイントを+2', 2, 5, 7, (board, p) => offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }])),
+    new ConfigurableColorCard('C54', '小包囲', '中心を除く上下左右4マスの色ポイントを+2', 2, 4, 7, (board, p) => offsetsFrom(board, p, [{ x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }])),
+    new ConfigurableColorCard('C55', 'くさび塗り', '指定方向に中心+前方2マスの色ポイントを+2', 2, 4, 7, (board, p) => offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 0, y: -1 }, { x: 0, y: -2 }])),
+    new ConfigurableColorCard('C56', '折れ線塗り', '直角に曲がる3マスの色ポイントを+2', 2, 4, 7, (board, p) => offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }])),
+
+    // ④ 色ポイント少 / 適用範囲狭
+    new ConfigurableColorCard('C57', '微塗り', '任意の1マスの色ポイントを+1', 1, 3, 4, (board, p) => [p]),
+    new ConfigurableColorCard('C58', '横隣塗り', '中心+右隣1マスの色ポイントを+1', 1, 3, 4, (board, p) => offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 1, y: 0 }])),
+    new ConfigurableColorCard('C59', '縦隣塗り', '中心+下隣1マスの色ポイントを+1', 1, 3, 4, (board, p) => offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 0, y: 1 }])),
+    new ConfigurableColorCard('C60', '斜め隣塗り', '中心+右下隣1マスの色ポイントを+1', 1, 3, 4, (board, p) => offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 1, y: 1 }])),
+    new ConfigurableColorCard('C61', '中心なし隣接', '右隣1マスのみ色ポイントを+1。中心は変化なし', 1, 3, 4, (board, p) => offsetsFrom(board, p, [{ x: 1, y: 0 }])),
+    new ConfigurableColorCard('C62', '角小塗り', '角+内側1マスの色ポイントを+1', 1, 3, 4, (board, p) => {
+      const size = board.getSize();
+      const dx = p.x < size / 2 ? 1 : -1;
+      const dy = p.y < size / 2 ? 1 : -1;
+      return offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: dx, y: dy }]);
+    }, (board, p) => {
+      const size = board.getSize();
+      return ((p.x === 0 || p.x === size - 1) && (p.y === 0 || p.y === size - 1)) ? [p] : [];
+    }),
+    new ConfigurableColorCard('C63', '端小塗り', '辺上マス+内側1マスの色ポイントを+1', 1, 3, 4, (board, p) => {
+      const size = board.getSize();
+      if (p.x === 0) return offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 1, y: 0 }]);
+      if (p.x === size - 1) return offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: -1, y: 0 }]);
+      if (p.y === 0) return offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 0, y: 1 }]);
+      return offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 0, y: -1 }]);
+    }, (board, p) => {
+      const size = board.getSize();
+      const isEdge = p.x === 0 || p.y === 0 || p.x === size - 1 || p.y === size - 1;
+      const isCorner = (p.x === 0 || p.x === size - 1) && (p.y === 0 || p.y === size - 1);
+      return isEdge && !isCorner ? [p] : [];
+    }),
+    new ConfigurableColorCard('C64', '敵色小削り', '任意の1マスの色ポイントを+1', 1, 3, 4, (board, p) => [p]),
+    new ConfigurableColorCard('C65', '中立小確保', '任意の1マスの色ポイントを+1', 1, 3, 4, (board, p) => [p]),
+    new ConfigurableColorCard('C66', '空白補修', '任意の1マスの色ポイントを+1', 1, 3, 4, (board, p) => [p]),
+
+    // ⑤ 色ポイント多 / 適用範囲広
+    new ConfigurableColorCard('C67', '豪雨塗り', '指定3×3ブロックの色ポイントを+2', 2, 6, 7, (board, p) => rectPositions(board, p.x - 1, p.y - 1, 3, 3)),
+    new ConfigurableColorCard('C68', '制圧十字', '大十字の色ポイントを+2', 2, 6, 7, (board, p) =>
+      offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 0, y: -1 }, { x: 0, y: -2 }, { x: 0, y: 1 }, { x: 0, y: 2 }, { x: -1, y: 0 }, { x: -2, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }])),
+    new ConfigurableColorCard('C69', '制圧斜十字', '大斜め十字の色ポイントを+2', 2, 6, 7, (board, p) =>
+      offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: -1, y: -1 }, { x: -2, y: -2 }, { x: 1, y: -1 }, { x: 2, y: -2 }, { x: -1, y: 1 }, { x: -2, y: 2 }, { x: 1, y: 1 }, { x: 2, y: 2 }])),
+    new ConfigurableColorCard('C70', '横列強襲', '指定行の全マスの色ポイントを+2', 2, 6, 7, (board, p) => rectPositions(board, 0, p.y, board.getSize(), 1)),
+    new ConfigurableColorCard('C71', '縦列強襲', '指定列の全マスの色ポイントを+2', 2, 6, 7, (board, p) => rectPositions(board, p.x, 0, 1, board.getSize())),
+    new ConfigurableColorCard('C72', '4×4圧塗り', '指定4×4ブロックの色ポイントを+2', 2, 6, 7, (board, p) => rectPositions(board, p.x - 1, p.y - 1, 4, 4)),
+    new ConfigurableColorCard('C73', '巨大リング', '指定5×5の外周マスの色ポイントを+2', 2, 6, 7, (board, p) =>
+      rectPositions(board, p.x - 2, p.y - 2, 5, 5).filter(pos => Math.abs(pos.x - p.x) === 2 || Math.abs(pos.y - p.y) === 2)),
+    new ConfigurableColorCard('C74', '戦線拡張', '指定行と隣接行の5列範囲の色ポイントを+2', 2, 6, 7, (board, p) => rectPositions(board, p.x - 2, p.y - 1, 5, 2)),
+    new ConfigurableColorCard('C75', '大包囲', '指定マス周囲8マスの色ポイントを+2。中心は変化なし', 2, 6, 7, (board, p) =>
+      offsetsFrom(board, p, [{ x: -1, y: -1 }, { x: 0, y: -1 }, { x: 1, y: -1 }, { x: -1, y: 0 }, { x: 1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: 1 }, { x: 1, y: 1 }])),
+    new ConfigurableColorCard('C76', '決戦領域', '7×7限定。指定3×3ブロックの色ポイントを+3', 3, 7, 7, (board, p) => rectPositions(board, p.x - 1, p.y - 1, 3, 3))
+  ];
 }
 
 export class F08_AllOwnBoost extends FortCard {

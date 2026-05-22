@@ -214,14 +214,14 @@ class GameUI {
       deck = this.createDeckFromCardIds(this.devSettings.cardIds);
       // 選択数が足りない場合はランダムで補完、超える場合は切り詰め
       if (deck.length < this.devSettings.totalTurns) {
-        const fill = CardFactory.createRandomDeck(this.devSettings.totalTurns - deck.length);
+        const fill = CardFactory.createRandomDeck(this.devSettings.totalTurns - deck.length, this.devSettings.boardSize);
         deck = [...deck, ...fill];
       } else if (deck.length > this.devSettings.totalTurns) {
         deck = deck.slice(0, this.devSettings.totalTurns);
       }
     } else {
       // 総ターン数に応じたデッキを作成
-      deck = CardFactory.createRandomDeck(this.devSettings.totalTurns);
+      deck = CardFactory.createRandomDeck(this.devSettings.totalTurns, this.devSettings.boardSize);
     }
 
     const playerA = new Player('A', [...deck]);
@@ -415,14 +415,17 @@ class GameUI {
 
   private createDeckFromCardIds(cardIds: string[]): Card[] {
     const deck: Card[] = [];
-    const allCards = CardFactory.createAllCards();
+    const allCards = CardFactory.createAllCards()
+      .filter(card => CardFactory.isAvailableForBoard(card, this.devSettings.boardSize));
     const maxCards = this.devSettings.totalTurns;
     
     for (const cardId of cardIds) {
       const trimmedId = cardId.trim() as CardId;
       const card = CardFactory.createCardById(trimmedId);
-      if (card) {
+      if (card && CardFactory.isAvailableForBoard(card, this.devSettings.boardSize)) {
         deck.push(card);
+      } else if (card) {
+        console.warn(`カードID "${trimmedId}" は ${this.devSettings.boardSize}×${this.devSettings.boardSize} 盤面では使用できません`);
       } else {
         console.warn(`カードID "${trimmedId}" が見つかりません`);
       }
@@ -430,7 +433,7 @@ class GameUI {
     
     // 総ターン数に満たない場合はランダムで補填
     while (deck.length < maxCards) {
-      const remainingCards = allCards.filter(c => !cardIds.includes(c.getId()));
+      const remainingCards = allCards.filter(c => !deck.some(card => card.getId() === c.getId()));
       if (remainingCards.length === 0) break;
       const randomCard = remainingCards[Math.floor(Math.random() * remainingCards.length)];
       const newCard = CardFactory.createCardById(randomCard.getId());
@@ -1097,6 +1100,7 @@ class GameUI {
   ): { titleEl: HTMLElement; typeTextInner: HTMLElement } {
     const gradId = `paint0_color_${card.getId()}_${Math.random().toString(36).slice(2, 11)}`;
     const frameFill = this.getCardTypeFrameFill('color');
+    const colorPower = this.getCardPower(card);
 
     const whole = document.createElement('div');
     whole.className = 'card-whole';
@@ -1202,9 +1206,14 @@ class GameUI {
 
     const isColorCard = card.getType() === 'color';
     if (isColorCard) {
+      const powerPanel = document.createElement('div');
+      powerPanel.className = `color-power-panel color-power-panel--${colorPower}`;
+      powerPanel.textContent = `+${colorPower}`;
+      visual.appendChild(powerPanel);
+
       const wrap = document.createElement('div');
       wrap.className = 'color-card-pattern-wrap';
-      wrap.appendChild(this.createColorCardPattern(card.getId()));
+      wrap.appendChild(this.createColorCardPattern(card.getId(), colorPower));
       visual.appendChild(wrap);
     } else if (turnInfo) {
       const descP = document.createElement('p');
@@ -1233,9 +1242,20 @@ class GameUI {
     card: Card,
     description: string,
     turnInfo: string | null,
-    isEffectChanged: boolean
+    isEffectChanged: boolean,
+    theme: {
+      kind: 'fort' | 'disruption';
+      label: string;
+      accent: string;
+      frameFill: string;
+    } = {
+      kind: 'fort',
+      label: 'キョウカ',
+      accent: '#FF3134',
+      frameFill: '#FF0004'
+    }
   ): { titleEl: HTMLElement; typeTextInner: HTMLElement } {
-    const gradId = `paint0_fort_${card.getId()}_${Math.random().toString(36).slice(2, 11)}`;
+    const gradId = `paint0_${theme.kind}_${card.getId()}_${Math.random().toString(36).slice(2, 11)}`;
 
     const whole = document.createElement('div');
     whole.className = 'card-whole';
@@ -1246,7 +1266,7 @@ class GameUI {
                     <defs>
                         <linearGradient gradientUnits="userSpaceOnUse" id="${gradId}" x1="60" x2="643" y1="380.5" y2="-53">
                             <stop offset="0.719918" stop-color="#474747" />
-                            <stop offset="0.72034" stop-color="#FF3134" />
+                            <stop offset="0.72034" stop-color="${theme.accent}" />
                         </linearGradient>
                     </defs>
                 </svg>`;
@@ -1267,7 +1287,7 @@ class GameUI {
     const typeFrameInner = document.createElement('div');
     typeFrameInner.className = 'card-type-frame-inner';
     typeFrameInner.innerHTML = `<svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 221.422 76.8846">
-                    <path d="M193.673 1.5H2.92202L55.922 75.3846H219.922V28.5C215.607 10.7505 209.338 5.4729 193.673 1.5Z" fill="#FF0004" stroke="black" stroke-width="3" />
+                    <path d="M193.673 1.5H2.92202L55.922 75.3846H219.922V28.5C215.607 10.7505 209.338 5.4729 193.673 1.5Z" fill="${theme.frameFill}" stroke="black" stroke-width="3" />
                 </svg>`;
     typeFrame.appendChild(typeFrameInner);
     visual.appendChild(typeFrame);
@@ -1276,7 +1296,7 @@ class GameUI {
     typeP.className = 'special-text';
     const typeTextInner = document.createElement('span');
     typeTextInner.className = 'special-text-inner';
-    typeTextInner.textContent = 'キョウカ';
+    typeTextInner.textContent = theme.label;
     typeP.appendChild(typeTextInner);
     visual.appendChild(typeP);
 
@@ -1352,6 +1372,21 @@ class GameUI {
     }
 
     return { titleEl: titleP, typeTextInner };
+  }
+
+  private buildDisruptionCardVisual(
+    visual: HTMLElement,
+    card: Card,
+    description: string,
+    turnInfo: string | null,
+    isEffectChanged: boolean
+  ): { titleEl: HTMLElement; typeTextInner: HTMLElement } {
+    return this.buildFortCardVisual(visual, card, description, turnInfo, isEffectChanged, {
+      kind: 'disruption',
+      label: 'ボウガイ',
+      accent: '#667EEA',
+      frameFill: '#5B4CFF'
+    });
   }
 
   /**
@@ -1510,18 +1545,25 @@ class GameUI {
   /**
    * カード種別ごとに種別枠の塗り色（参考デザイン）
    */
-  private getCardTypeFrameFill(kind: 'color' | 'fort' | 'special'): string {
+  private getCardTypeFrameFill(kind: 'color' | 'fort' | 'disruption' | 'special'): string {
     if (kind === 'color') return '#00E050';
     if (kind === 'fort') return '#FF0004';
+    if (kind === 'disruption') return '#5B4CFF';
     return '#FF9500';
+  }
+
+  private getCardPower(card: Card): number {
+    const maybePoweredCard = card as Card & { getPower?: () => number };
+    const power = maybePoweredCard.getPower ? maybePoweredCard.getPower() : 1;
+    return Math.max(1, Math.min(3, power));
   }
 
   /**
    * 色カードのパターンを描画するSVGを作成（黒地・蛍光グリッド）
    */
-  private createColorCardPattern(cardId: string): HTMLElement {
+  private createColorCardPattern(cardId: string, power: number = 1): HTMLElement {
     const container = document.createElement('div');
-    container.className = 'color-card-pattern';
+    container.className = `color-card-pattern color-card-pattern--power-${power}`;
 
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('viewBox', '0 0 100 100');
@@ -1531,9 +1573,9 @@ class GameUI {
     const offset = 15;
     const gridSize = 5;
     const pattern = this.getColorCardPattern(cardId);
-    const gridStroke = '#3cff00';
+    const gridStroke = power >= 3 ? '#dfff32' : power === 2 ? '#7cff35' : '#3cff00';
     const cellBg = '#0b0c0b';
-    const fillHi = '#3cff00';
+    const fillHi = power >= 3 ? '#f3ff36' : power === 2 ? '#80ff35' : '#3cff00';
 
     for (let y = 0; y < gridSize; y++) {
       for (let x = 0; x < gridSize; x++) {
@@ -1567,6 +1609,23 @@ class GameUI {
 
   // 色カードIDからパターンを取得（中心を(2,2)とする5×5グリッド）
   private getColorCardPattern(cardId: string): Array<{ x: number; y: number }> {
+    const numericColorId = cardId.startsWith('C') ? Number(cardId.slice(1)) : 0;
+    if (numericColorId >= 27) {
+      const card = CardFactory.createCardById(cardId);
+      if (card) {
+        const previewBoardSize = numericColorId >= 67 ? 7 : 5;
+        const previewBoard = new Board(previewBoardSize);
+        const origin = { x: Math.floor(previewBoardSize / 2), y: Math.floor(previewBoardSize / 2) };
+        const generatedPattern = card.getTargetPositions(previewBoard, origin, 'A')
+          .map(pos => ({
+            x: pos.x - origin.x + 2,
+            y: pos.y - origin.y + 2
+          }))
+          .filter(pos => pos.x >= 0 && pos.x < 5 && pos.y >= 0 && pos.y < 5);
+        if (generatedPattern.length > 0) return generatedPattern;
+      }
+    }
+
     const centerX = 2;
     const centerY = 2;
     const pattern: Array<{ x: number; y: number }> = [];
@@ -1584,7 +1643,7 @@ class GameUI {
         
       case 'C04': // 斜め2マス
         pattern.push({ x: centerX, y: centerY });
-        pattern.push({ x: centerX - 1, y: centerY - 1 });
+        pattern.push({ x: centerX + 1, y: centerY - 1 });
         break;
         
       case 'C06': // 角専用3マス（右下角）
@@ -1649,11 +1708,11 @@ class GameUI {
         pattern.push({ x: centerX, y: centerY + 1 });
         break;
         
-      case 'C17': // T字形成（下向きT）
+      case 'C17': // T字形成（上向きT）
         pattern.push({ x: centerX, y: centerY });
         pattern.push({ x: centerX - 1, y: centerY });
         pattern.push({ x: centerX + 1, y: centerY });
-        pattern.push({ x: centerX, y: centerY + 1 });
+        pattern.push({ x: centerX, y: centerY - 1 });
         break;
         
       case 'C18':
@@ -1908,10 +1967,9 @@ class GameUI {
 
     // ソートして追加
     const sortedGroups = Array.from(cardGroups.entries()).sort(([idA], [idB]) => {
-      const isColorA = idA.startsWith('C');
-      const isColorB = idB.startsWith('C');
-      if (isColorA && !isColorB) return -1;
-      if (!isColorA && isColorB) return 1;
+      const categoryA = this.getDisplayCardCategory(idA);
+      const categoryB = this.getDisplayCardCategory(idB);
+      if (categoryA !== categoryB) return categoryA - categoryB;
       const numA = parseInt(idA.substring(1));
       const numB = parseInt(idB.substring(1));
       return numA - numB;
@@ -1963,14 +2021,8 @@ class GameUI {
     const sortedHand = [...hand].sort((a, b) => {
       const idA = a.getId();
       const idB = b.getId();
-      const getCardCategory = (id: string): number => {
-        if (id.startsWith('S')) return 3;
-        if (id.startsWith('F')) return 2;
-        if (id.startsWith('C')) return 1;
-        return 4;
-      };
-      const categoryA = getCardCategory(idA);
-      const categoryB = getCardCategory(idB);
+      const categoryA = this.getDisplayCardCategory(idA);
+      const categoryB = this.getDisplayCardCategory(idB);
       if (categoryA !== categoryB) {
         return categoryA - categoryB;
       }
@@ -1982,12 +2034,21 @@ class GameUI {
     return { sortedHand, usedCards };
   }
 
+  private getDisplayCardCategory(id: string): number {
+    if (id.startsWith('C')) return 1;
+    if (id.startsWith('F')) return 2;
+    if (id.startsWith('W')) return 3;
+    if (id.startsWith('S')) return 4;
+    return 5;
+  }
+
   private isPlayerHandCardPickDisabled(card: Card, playerId: PlayerId): boolean {
     if (!this.gameManager) return true;
     const isDoubleActionActive = this.gameManager.isDoubleActionActive(playerId);
     const remaining = this.gameManager.getDoubleActionRemaining(playerId);
     const isSpecialCard = card.getType() === 'special';
     const isFortCard = card.getId().startsWith('F');
+    const isDisruptionCard = card.getId().startsWith('W');
     const isSkipped = this.gameManager.isSkipNextTurn(playerId);
     let isFirstCardUsed = false;
     if (isDoubleActionActive && remaining >= 1 && this.doubleActionFirstSelection) {
@@ -1997,7 +2058,7 @@ class GameUI {
         isFirstCardUsed = true;
       }
     }
-    return isSkipped || (isDoubleActionActive && (isSpecialCard || isFortCard)) || isFirstCardUsed;
+    return isSkipped || (isDoubleActionActive && (isSpecialCard || isFortCard || isDisruptionCard)) || isFirstCardUsed;
   }
 
   private buildPlayerHandCardElement(
@@ -2015,6 +2076,8 @@ class GameUI {
       cardElement.classList.add('card--color');
     } else if (cardIdForType.startsWith('F')) {
       cardElement.classList.add('card--fort');
+    } else if (cardIdForType.startsWith('W')) {
+      cardElement.classList.add('card--fort', 'card--disruption');
     } else {
       cardElement.classList.add('card--special');
     }
@@ -2026,11 +2089,13 @@ class GameUI {
       cardElement.classList.add('selected');
     }
 
-    const kind: 'color' | 'fort' | 'special' = cardIdForType.startsWith('C')
+    const kind: 'color' | 'fort' | 'disruption' | 'special' = cardIdForType.startsWith('C')
       ? 'color'
       : cardIdForType.startsWith('F')
         ? 'fort'
-        : 'special';
+        : cardIdForType.startsWith('W')
+          ? 'disruption'
+          : 'special';
 
     let description = card.getDescription();
     let turnInfo: string | null = null;
@@ -2053,7 +2118,7 @@ class GameUI {
           description = '任意のマス1つの色ポイントを+1（C01：単点塗りと同じ効果）';
           turnInfo = 'こうかがきれました';
         }
-      } else if (cardId === 'S09') {
+      } else if (cardId === 'S08') {
         if (remainingTurns >= 4) {
           const turnsUntilChange = remainingTurns - 3;
           turnInfo = `のこり${turnsUntilChange}ターンでかくせい`;
@@ -2062,18 +2127,6 @@ class GameUI {
           isEffectChanged = true;
           turnInfo = 'かくせいしました';
           description = '自色連結領域を対象。領域内の自色マスを2倍、領域外の自色マスをリセット';
-        }
-      } else if (cardId === 'S04') {
-        const pl = this.gameManager.getPlayer(playerId);
-        const handList = pl.getHand();
-        const remainingColorCards = handList.filter(c => {
-          const id = c.getId();
-          return id !== 'S04' && id.startsWith('C');
-        });
-
-        if (remainingColorCards.length <= 1) {
-          description = '任意のマス1つの色ポイントを+1';
-          isEffectChanged = true;
         }
       }
     }
@@ -2086,6 +2139,14 @@ class GameUI {
 
     if (kind === 'fort') {
       const built = this.buildFortCardVisual(visual, card, description, turnInfo, isEffectChanged);
+      titleSpan = built.titleEl;
+      typeTextInner = built.typeTextInner;
+      if (isEffectChanged) {
+        cardElement.classList.add('effect-changed');
+      }
+      cardElement.title = `${card.getName()} (${card.getId()})\n${description}`;
+    } else if (kind === 'disruption') {
+      const built = this.buildDisruptionCardVisual(visual, card, description, turnInfo, isEffectChanged);
       titleSpan = built.titleEl;
       typeTextInner = built.typeTextInner;
       if (isEffectChanged) {
@@ -4295,8 +4356,11 @@ class ScreenFlow {
   private showPuzzleLevel(levelNumber: number): void {
     const config = this.puzzleLevels.find(level => level.level === levelNumber) ?? this.puzzleLevels[0];
     const orderedCardIds = [...config.cardIds].sort((a, b) => {
-      const order = (id: CardId) => id.startsWith('C') ? 0 : id.startsWith('F') ? 1 : 2;
-      return order(a) - order(b);
+      const order = (id: CardId) => id.startsWith('C') ? 1 : id.startsWith('F') ? 2 : id.startsWith('W') ? 3 : id.startsWith('S') ? 4 : 5;
+      const categoryA = order(a);
+      const categoryB = order(b);
+      if (categoryA !== categoryB) return categoryA - categoryB;
+      return parseInt(a.substring(1)) - parseInt(b.substring(1));
     });
     const board = Array(config.boardSize * config.boardSize).fill(0) as number[];
     const used = orderedCardIds.map(() => false);
@@ -4440,6 +4504,15 @@ class ScreenFlow {
   private getPuzzleCardEffects(board: number[], boardSize: number, cardId: CardId, originIndex: number): Array<{ index: number; delta: number }> {
     const targetIndexes = this.getPuzzleCardTargetIndexes(boardSize, cardId, originIndex);
     const ownOnly = (indexes: number[]) => indexes.filter(index => board[index] > 0);
+    const numericColorId = cardId.startsWith('C') ? Number(cardId.slice(1)) : 0;
+
+    if (numericColorId >= 27) {
+      const card = CardFactory.createCardById(cardId);
+      const power = card && 'getPower' in card && typeof (card as any).getPower === 'function'
+        ? (card as any).getPower()
+        : 1;
+      return targetIndexes.map(index => ({ index, delta: power }));
+    }
 
     if (cardId === 'F01') {
       return board[originIndex] > 0 ? [{ index: originIndex, delta: 2 }] : [];
@@ -4471,6 +4544,16 @@ class ScreenFlow {
         positions.push({ x: px, y: py });
       }
     };
+    const numericColorId = cardId.startsWith('C') ? Number(cardId.slice(1)) : 0;
+
+    if (numericColorId >= 27) {
+      const card = CardFactory.createCardById(cardId);
+      if (card) {
+        const previewBoard = new Board(boardSize);
+        return card.getTargetPositions(previewBoard, { x, y }, 'A')
+          .map(pos => pos.y * boardSize + pos.x);
+      }
+    }
 
     if (cardId === 'C03' || cardId === 'C13') {
       add(x - 1, y);
@@ -4563,12 +4646,17 @@ class ScreenFlow {
 
   private buildPuzzleBattleCard(card: Card, index: number): string {
     const isFort = card.getId().startsWith('F');
-    const kind = isFort ? 'fort' : 'color';
-    const typeFill = isFort ? '#FF0004' : '#00E050';
-    const typeLabel = isFort ? 'キョウカ' : 'イロ';
-    const bodyContent = isFort
+    const isDisruption = card.getId().startsWith('W');
+    const kind = isFort ? 'fort' : isDisruption ? 'disruption' : 'color';
+    const typeFill = isFort ? '#FF0004' : isDisruption ? '#5B4CFF' : '#00E050';
+    const typeLabel = isFort ? 'キョウカ' : isDisruption ? 'ボウガイ' : 'イロ';
+    const power = this.getCardPower(card);
+    const colorPowerMarkup = !isFort && !isDisruption
+      ? `<div class="color-power-panel color-power-panel--${power}">+${power}</div>`
+      : '';
+    const bodyContent = isFort || isDisruption
       ? `<p class="description-text">${card.getDescription()}</p>`
-      : `<div class="color-card-pattern-wrap"><div class="color-card-pattern">${this.buildPuzzleColorPattern(card.getId())}</div></div>`;
+      : `<div class="color-card-pattern-wrap"><div class="color-card-pattern color-card-pattern--power-${power}">${this.buildPuzzleColorPattern(card.getId(), power)}</div></div>`;
     return `
       <button class="card card--${kind} puzzle-hand-card" type="button" data-card-index="${index}" title="${card.getName()} (${card.getId()})">
         <div class="card-visual">
@@ -4582,14 +4670,21 @@ class ScreenFlow {
           <div class="flavor-power-button"></div><div class="flavor-side-button-1"></div><div class="flavor-side-button-2"></div>
           <div class="vertical-line-container"><div class="vertical-line-rotated"><div class="vertical-line"><div class="vertical-line-inner"><svg class="line-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 77 6"><line stroke="black" stroke-width="6" x2="77" y1="3" y2="3" /></svg></div></div></div></div>
           <div class="card-description-box"></div>
+          ${colorPowerMarkup}
           ${bodyContent}
         </div>
       </button>
     `;
   }
 
-  private buildCardShellSvg(kind: 'color' | 'fort'): string {
-    const color = kind === 'fort' ? '#FF3134' : '#1bbf4a';
+  private getCardPower(card: Card): number {
+    const maybePoweredCard = card as Card & { getPower?: () => number };
+    const power = maybePoweredCard.getPower ? maybePoweredCard.getPower() : 1;
+    return Math.max(1, Math.min(3, power));
+  }
+
+  private buildCardShellSvg(kind: 'color' | 'fort' | 'disruption'): string {
+    const color = kind === 'fort' ? '#FF3134' : kind === 'disruption' ? '#667EEA' : '#1bbf4a';
     const gradId = `puzzle-card-grad-${Math.random().toString(36).slice(2)}`;
     return `<svg class="card-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 657.963 311"><path d="M623.963 3H34C16.8792 3 3 16.8792 3 34V277C3 294.121 16.8792 308 34 308H623.963C641.083 308 654.963 294.121 654.963 277V34C654.963 16.8792 641.083 3 623.963 3Z" fill="url(#${gradId})" stroke="black" stroke-width="6" /><defs><linearGradient gradientUnits="userSpaceOnUse" id="${gradId}" x1="60" x2="643" y1="380.5" y2="-53"><stop offset="0.719918" stop-color="#474747" /><stop offset="0.72034" stop-color="${color}" /></linearGradient></defs></svg>`;
   }
@@ -4606,9 +4701,15 @@ class ScreenFlow {
     return `<svg class="star-svg" fill="none" preserveAspectRatio="none" viewBox="0 0 34.238 32.5623"><path d="M20.2089 12.7471L20.4335 13.4375H31.161L23.0702 19.3154L22.4823 19.7422L22.7069 20.4336L25.7968 29.9434L17.7069 24.0664L17.119 23.6396L16.5311 24.0664L8.44031 29.9434L11.5311 20.4336L11.7557 19.7422L11.1678 19.3154L3.07702 13.4375H13.8046L14.0292 12.7471L17.119 3.23633L20.2089 12.7471Z" stroke="#F1FF2C" stroke-width="2" fill="${filled ? '#F1FF2C' : '#474747'}" /></svg>`;
   }
 
-  private buildPuzzleColorPattern(cardId: CardId): string {
+  private buildPuzzleColorPattern(cardId: CardId, power: number = 1): string {
     const patterns: Partial<Record<CardId, number[]>> = {
+      C01: [12],
       C03: [11, 12, 13],
+      C04: [8, 12],
+      C06: [18, 23, 24],
+      C07: [12, 17, 22],
+      C09: [12],
+      C10: [7, 17],
       C11: [7, 11, 12, 13, 17],
       C12: [6, 8, 12, 16, 18],
       C13: [11, 12, 13],
@@ -4633,12 +4734,31 @@ class ScreenFlow {
       F10: [10, 11, 12, 13, 14],
       F11: [2, 7, 12, 17, 22]
     };
-    const lit = new Set<number>(patterns[cardId] ?? [12]);
+    let pattern = patterns[cardId];
+    const numericColorId = cardId.startsWith('C') ? Number(cardId.slice(1)) : 0;
+    if (!pattern && numericColorId >= 27) {
+      const card = CardFactory.createCardById(cardId);
+      if (card) {
+        const previewBoardSize = numericColorId >= 67 ? 7 : 5;
+        const previewBoard = new Board(previewBoardSize);
+        const origin = { x: Math.floor(previewBoardSize / 2), y: Math.floor(previewBoardSize / 2) };
+        pattern = card.getTargetPositions(previewBoard, origin, 'A')
+          .map(pos => ({
+            x: pos.x - origin.x + 2,
+            y: pos.y - origin.y + 2
+          }))
+          .filter(pos => pos.x >= 0 && pos.x < 5 && pos.y >= 0 && pos.y < 5)
+          .map(pos => pos.y * 5 + pos.x);
+      }
+    }
+    const lit = new Set<number>(pattern ?? [12]);
+    const gridStroke = power >= 3 ? '#dfff32' : power === 2 ? '#7cff35' : '#3cff00';
+    const fillHi = power >= 3 ? '#f3ff36' : power === 2 ? '#80ff35' : '#3cff00';
     const cells = Array.from({ length: 25 }, (_, i) => {
       const x = 15 + (i % 5) * 14;
       const y = 15 + Math.floor(i / 5) * 14;
       const isCenter = lit.has(i);
-      return `<rect x="${x}" y="${y}" width="13" height="13" fill="${isCenter ? '#3cff00' : '#0b0c0b'}" stroke="#3cff00" stroke-width="${isCenter ? '1.25' : '0.75'}" />`;
+      return `<rect x="${x}" y="${y}" width="13" height="13" fill="${isCenter ? fillHi : '#0b0c0b'}" stroke="${gridStroke}" stroke-width="${isCenter ? '1.25' : '0.75'}" />`;
     }).join('');
     return `<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">${cells}</svg>`;
   }
@@ -4723,7 +4843,7 @@ class ScreenFlow {
     const sortedCards = [...allCards].sort((a, b) => {
       const idA = a.getId();
       const idB = b.getId();
-      const cat = (id: string) => (id.startsWith('C') ? 1 : id.startsWith('F') ? 2 : id.startsWith('S') ? 3 : 4);
+      const cat = (id: string) => (id.startsWith('C') ? 1 : id.startsWith('F') ? 2 : id.startsWith('W') ? 3 : id.startsWith('S') ? 4 : 5);
       const ca = cat(idA);
       const cb = cat(idB);
       if (ca !== cb) return ca - cb;

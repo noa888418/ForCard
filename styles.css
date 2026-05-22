@@ -1720,15 +1720,48 @@ body::before {
 /* ??????????????E?????? */
 .card--color .color-card-pattern-wrap {
     position: absolute;
-    left: 31px;
+    left: 200px;
     top: 114px;
-    width: 591px;
+    width: 350px;
     height: 170px;
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 2;
     pointer-events: none;
+}
+
+.card--color .color-power-panel {
+    position: absolute;
+    left: 42px;
+    top: 121px;
+    width: 136px;
+    height: 88px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "BaseballPark", "GenEiKiwamiGo", sans-serif;
+    font-size: 70px;
+    line-height: 1;
+    letter-spacing: 0;
+    color: #ecfff0;
+    background: #070807;
+    box-sizing: border-box;
+    text-shadow: 0 0 12px currentColor;
+    z-index: 3;
+    pointer-events: none;
+}
+
+.card--color .color-power-panel--1 {
+    color: #3cff00;
+}
+
+.card--color .color-power-panel--2 {
+    color: #80ff35;
+}
+
+.card--color .color-power-panel--3 {
+    color: #f3ff36;
 }
 
 .card-type-frame {
@@ -1973,6 +2006,18 @@ body::before {
     max-width: 100%;
     max-height: 100%;
     display: block;
+}
+
+.color-card-pattern--power-1 svg {
+    filter: drop-shadow(0 0 4px rgba(60, 255, 0, 0.62));
+}
+
+.color-card-pattern--power-2 svg {
+    filter: drop-shadow(0 0 7px rgba(128, 255, 53, 0.8));
+}
+
+.color-card-pattern--power-3 svg {
+    filter: drop-shadow(0 0 10px rgba(243, 255, 54, 0.92));
 }
 
 #board-container {

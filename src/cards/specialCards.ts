@@ -164,26 +164,10 @@ export class S03_Overload extends SpecialCard {
   }
 }
 
-// S04: ダブルアクション（ゲームマネージャーで処理が必要）
-export class S04_DoubleAction extends SpecialCard {
+// S04: スペシャルジャマー（ゲームマネージャーで処理が必要）
+export class S04_SpecialJammer extends SpecialCard {
   constructor() {
-    super('S04', 'ダブルアクション', '次の自分ターンに限り、色カードを最大2枚まで連続でプレイできる。その次のターンは行動スキップ');
-  }
-
-  applyEffect(board: Board, position: Position, playerId: PlayerId): void {
-    // このカード自体は盤面に影響しない
-    // 効果はGameManagerで処理
-  }
-
-  getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
-    return [position];
-  }
-}
-
-// S05: スペシャルジャマー（ゲームマネージャーで処理が必要）
-export class S05_SpecialJammer extends SpecialCard {
-  constructor() {
-    super('S05', 'スペシャルジャマー', 'このターン、相手が出したカードが特殊カードだった場合、その効果を完全に無効化');
+    super('S04', 'スペシャルジャマー', 'このターン、相手が出したカードが特殊カードだった場合、その効果を完全に無効化');
   }
 
   applyEffect(board: Board, position: Position, playerId: PlayerId): void {
@@ -195,10 +179,10 @@ export class S05_SpecialJammer extends SpecialCard {
   }
 }
 
-// S06: カラーギャンブル（ゲームマネージャーで処理が必要）
-export class S06_ColorGamble extends SpecialCard {
+// S05: カラーギャンブル（ゲームマネージャーで処理が必要）
+export class S05_ColorGamble extends SpecialCard {
   constructor() {
-    super('S06', 'カラーギャンブル', '相手が色カードを使うと読む。相手のパターンと同じパターンを適用し、相手から1マス奪う');
+    super('S05', 'カラーギャンブル', '相手が色カードを使うと読む。相手のパターンと同じパターンを適用し、相手から1マス奪う');
   }
 
   applyEffect(board: Board, position: Position, playerId: PlayerId): void {
@@ -210,12 +194,12 @@ export class S06_ColorGamble extends SpecialCard {
   }
 }
 
-// S07: タイムボム
-export class S07_TimeBomb extends SpecialCard {
+// S06: タイムボム
+export class S06_TimeBomb extends SpecialCard {
   private explosionTurn: number = -1;
 
   constructor() {
-    super('S07', 'タイムボム', '設置から2ターン後の自分ターン終了時に爆発。爆心地3×3内の自色マスの色ポイントを+2、敵色マスの色ポイントを+1');
+    super('S06', 'タイムボム', '設置から2ターン後の自分ターン終了時に爆発。爆心地3×3内の自色マスの色ポイントを+2、敵色マスの色ポイントを+1');
   }
 
   applyEffect(board: Board, position: Position, playerId: PlayerId, options?: { currentTurn: number }): void {
@@ -263,10 +247,10 @@ export class S07_TimeBomb extends SpecialCard {
   }
 }
 
-// S08: サクリファイス・スワップ
-export class S08_SacrificeSwap extends SpecialCard {
+// S07: サクリファイス・スワップ
+export class S07_SacrificeSwap extends SpecialCard {
   constructor() {
-    super('S08', 'サクリファイス・スワップ', '中立or敵色マスにのみ置ける。自色マスから最大3マスを犠牲にして、その色ポイントを置いたマスに集約');
+    super('S07', 'サクリファイス・スワップ', '中立or敵色マスにのみ置ける。自色マスから最大3マスを犠牲にして、その色ポイントを置いたマスに集約');
   }
 
   canPlay(board: Board, position: Position, playerId: PlayerId): boolean {
@@ -333,10 +317,10 @@ export class S08_SacrificeSwap extends SpecialCard {
   }
 }
 
-// S09: ラストフォートレス
-export class S09_LastFortress extends SpecialCard {
+// S08: ラストフォートレス
+export class S08_LastFortress extends SpecialCard {
   constructor() {
-    super('S09', 'ラストフォートレス', '自色連結領域を対象。残り4ターン以上ならランダム1〜3マスの色ポイントを+1。残り3ターン以内なら領域を要塞化し、他をリセット');
+    super('S08', 'ラストフォートレス', '自色連結領域を対象。残り4ターン以上ならランダム1〜3マスの色ポイントを+1。残り3ターン以内なら領域を要塞化し、他をリセット');
   }
 
   applyEffect(board: Board, position: Position, playerId: PlayerId, options?: { remainingTurns: number }): void {
@@ -404,10 +388,10 @@ export class S09_LastFortress extends SpecialCard {
   }
 }
 
-// S10: ターゲットロック
-export class S10_TargetLock extends SpecialCard {
+// S09: ターゲットロック
+export class S09_TargetLock extends SpecialCard {
   constructor() {
-    super('S10', 'ターゲットロック', '相手が色カードを使うと読む。相手の対象にロック座標が含まれていれば、そのマスの色ポイントを自分色+2に。外れればペナルティ');
+    super('S09', 'ターゲットロック', '相手が色カードを使うと読む。相手の対象にロック座標が含まれていれば、そのマスの色ポイントを自分色+2に。外れればペナルティ');
   }
 
   applyEffect(board: Board, position: Position, playerId: PlayerId, options?: { opponentTargetPositions: Position[] }): void {
@@ -452,4 +436,3 @@ export class S10_TargetLock extends SpecialCard {
     return [position];
   }
 }
-

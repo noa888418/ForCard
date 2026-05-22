@@ -8,13 +8,14 @@ export type Position = {
 export type PlayerId = 'A' | 'B';
 
 // カードの種類
-export type CardType = 'color' | 'fort' | 'special';
+export type CardType = 'color' | 'fort' | 'disruption' | 'special';
 
 // カードID
 export type ColorCardId = `C${number}`;
 export type FortCardId = `F${number}`;
+export type DisruptionCardId = `W${number}`;
 export type SpecialCardId = `S${number}`;
-export type CardId = ColorCardId | FortCardId | SpecialCardId;
+export type CardId = ColorCardId | FortCardId | DisruptionCardId | SpecialCardId;
 
 // カード選択情報
 export type CardSelection = {
@@ -39,4 +40,3 @@ export type FortressShape = {
   positions: Position[];
   minStability: number;
 };
-

@@ -217,14 +217,14 @@ export class CardEffectSimulator {
           case 'S03': // オーバーロード
             this.testS03_Overload(card as SpecialCard, result);
             break;
-          case 'S05': // スペシャルジャマー
-            this.testS05_SpecialJammer(card as SpecialCard, result);
+          case 'S04': // スペシャルジャマー
+            this.testS04_SpecialJammer(card as SpecialCard, result);
             break;
-          case 'S07': // タイムボム
-            this.testS07_TimeBomb(card as SpecialCard, result);
+          case 'S06': // タイムボム
+            this.testS06_TimeBomb(card as SpecialCard, result);
             break;
-          case 'S09': // ラストフォートレス
-            this.testS09_LastFortress(card as SpecialCard, result);
+          case 'S08': // ラストフォートレス
+            this.testS08_LastFortress(card as SpecialCard, result);
             break;
           default:
             // 基本的な検証のみ
@@ -319,10 +319,10 @@ export class CardEffectSimulator {
   }
 
   /**
-   * S05: スペシャルジャマーの検証
+   * S04: スペシャルジャマーの検証
    */
-  private testS05_SpecialJammer(card: SpecialCard, result: TestResult): void {
-    // S05はGameManagerで処理されるため、基本的な検証のみ
+  private testS04_SpecialJammer(card: SpecialCard, result: TestResult): void {
+    // S04はGameManagerで処理されるため、基本的な検証のみ
     const testPosition: Position = { x: 2, y: 2 };
     const targetPositions = card.getTargetPositions(this.board, testPosition, 'A');
     
@@ -331,13 +331,13 @@ export class CardEffectSimulator {
       result.passed = false;
     }
 
-    result.warnings.push('S05の効果はGameManagerでの相互干渉テストが必要です');
+    result.warnings.push('S04の効果はGameManagerでの相互干渉テストが必要です');
   }
 
   /**
-   * S07: タイムボムの検証
+   * S06: タイムボムの検証
    */
-  private testS07_TimeBomb(card: SpecialCard, result: TestResult): void {
+  private testS06_TimeBomb(card: SpecialCard, result: TestResult): void {
     const testPosition: Position = { x: 2, y: 2 };
     card.applyEffect(this.board, testPosition, 'A', { currentTurn: 5 });
 
@@ -346,9 +346,9 @@ export class CardEffectSimulator {
   }
 
   /**
-   * S09: ラストフォートレスの検証
+   * S08: ラストフォートレスの検証
    */
-  private testS09_LastFortress(card: SpecialCard, result: TestResult): void {
+  private testS08_LastFortress(card: SpecialCard, result: TestResult): void {
     this.resetBoard();
     this.prepareOwnCells('A');
 
@@ -401,4 +401,3 @@ export class CardEffectSimulator {
     }
   }
 }
-
