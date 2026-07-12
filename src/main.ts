@@ -4063,10 +4063,221 @@ type PuzzleLevelConfig = {
   boardSize: number;
   cardIds: CardId[];
   target: number[];
+  initialBoard?: number[];
 };
+
+type PuzzleFixedShape =
+  | 'H3' | 'V3' | 'B2' | 'X' | 'D' | 'P' | 'H2' | 'V2'
+  | 'LDR' | 'LDL' | 'LUR' | 'LUL'
+  | 'TU' | 'TD' | 'TL' | 'TR'
+  | 'N' | 'S' | 'Z' | 'STEP' | 'HOOK' | 'J' | 'R';
+
+type PuzzleFixedCardSpec = {
+  id: CardId;
+  name: string;
+  description: string;
+  type: 'color' | 'fort';
+  power: number;
+  originIndex: number;
+  shape: PuzzleFixedShape;
+};
+
+const getPuzzleFixedShapePositions = (board: Board, origin: Position, shape: PuzzleFixedShape): Position[] => {
+  const offsetsByShape: Record<PuzzleFixedShape, Position[]> = {
+    H3: [{ x: -1, y: 0 }, { x: 0, y: 0 }, { x: 1, y: 0 }],
+    V3: [{ x: 0, y: -1 }, { x: 0, y: 0 }, { x: 0, y: 1 }],
+    B2: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }],
+    X: [{ x: 0, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 }],
+    D: [{ x: 0, y: 0 }, { x: -1, y: -1 }, { x: 1, y: -1 }, { x: -1, y: 1 }, { x: 1, y: 1 }],
+    P: [{ x: 0, y: 0 }],
+    H2: [{ x: 0, y: 0 }, { x: 1, y: 0 }],
+    V2: [{ x: 0, y: 0 }, { x: 0, y: 1 }],
+    LDR: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+    LDL: [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }],
+    LUR: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }],
+    LUL: [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: 0, y: -1 }],
+    TU: [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: -1 }],
+    TD: [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }],
+    TL: [{ x: 0, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }],
+    TR: [{ x: 0, y: 0 }, { x: 0, y: -1 }, { x: 0, y: 1 }, { x: 1, y: 0 }],
+    N: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: -1 }, { x: 2, y: -1 }],
+    S: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }],
+    Z: [{ x: 0, y: 0 }, { x: -1, y: 0 }, { x: -1, y: 1 }, { x: -2, y: 1 }],
+    STEP: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 2, y: 2 }],
+    HOOK: [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 0, y: 1 }],
+    J: [{ x: 0, y: 0 }, { x: 0, y: 1 }, { x: 0, y: 2 }, { x: -1, y: 2 }],
+    R: [{ x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: 2 }]
+  };
+  const seen = new Set<string>();
+  const positions: Position[] = [];
+  for (const offset of offsetsByShape[shape]) {
+    const pos = { x: origin.x + offset.x, y: origin.y + offset.y };
+    if (!board.isValidPosition(pos.x, pos.y)) continue;
+    const key = `${pos.x},${pos.y}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    positions.push(pos);
+  }
+  return positions;
+};
+
+const getPuzzleFixedShapeName = (shape: PuzzleFixedShape): string => {
+  const names: Record<PuzzleFixedShape, string> = {
+    H3: '横3マス',
+    V3: '縦3マス',
+    B2: '2x2ブロック',
+    X: '十字',
+    D: '斜め十字',
+    P: '単マス',
+    H2: '横2マス',
+    V2: '縦2マス',
+    LDR: '右下L字',
+    LDL: '左下L字',
+    LUR: '右上L字',
+    LUL: '左上L字',
+    TU: '上向きT字',
+    TD: '下向きT字',
+    TL: '左向きT字',
+    TR: '右向きT字',
+    N: 'N字',
+    S: 'S字',
+    Z: 'Z字',
+    STEP: '階段',
+    HOOK: 'フック',
+    J: 'J字',
+    R: '段差'
+  };
+  return names[shape];
+};
+
+const getPuzzleFixedShapeDescription = (shape: PuzzleFixedShape): string => {
+  const descriptions: Record<PuzzleFixedShape, string> = {
+    H3: '左・中心・右の3マス',
+    V3: '上・中心・下の3マス',
+    B2: '左上を起点にした2x2の4マス',
+    X: '中心と上下左右の最大5マス',
+    D: '中心と斜め4方向の最大5マス',
+    P: '指定した1マス',
+    H2: '中心と右の2マス',
+    V2: '中心と下の2マス',
+    LDR: '中心・右・下の3マス',
+    LDL: '中心・左・下の3マス',
+    LUR: '中心・右・上の3マス',
+    LUL: '中心・左・上の3マス',
+    TU: '中心・左・右・上の4マス',
+    TD: '中心・左・右・下の4マス',
+    TL: '中心・上・下・左の4マス',
+    TR: '中心・上・下・右の4マス',
+    N: '中心・右・右上・2マス右上の最大4マス',
+    S: '中心・右・右下・2マス右下の最大4マス',
+    Z: '中心・左・左下・2マス左下の最大4マス',
+    STEP: '中心から右下へ伸びる階段状の最大5マス',
+    HOOK: '中心から右へ3マスと下1マスの最大4マス',
+    J: '中心から下へ3マスと左下1マスの最大4マス',
+    R: '中心から下へ折れる段差状の最大4マス'
+  };
+  return descriptions[shape];
+};
+
+const getPuzzleFixedCardName = (spec: PuzzleFixedCardSpec): string => {
+  const suffix = spec.type === 'color' ? '塗り' : '補強';
+  return `${getPuzzleFixedShapeName(spec.shape)}${suffix}`;
+};
+
+const getPuzzleFixedCardDescription = (spec: PuzzleFixedCardSpec): string => {
+  const effect = spec.type === 'color'
+    ? `色ポイントを+${spec.power}`
+    : `自色マスの色ポイントを+${spec.power}`;
+  return `置いたマスを基準に、${getPuzzleFixedShapeDescription(spec.shape)}の${effect}。`;
+};
+
+class PuzzleFixedCard extends Card {
+  private spec: PuzzleFixedCardSpec;
+
+  constructor(spec: PuzzleFixedCardSpec) {
+    super(spec.id, getPuzzleFixedCardName(spec), getPuzzleFixedCardDescription(spec), spec.type);
+    this.spec = spec;
+  }
+
+  getPower(): number {
+    return this.spec.power;
+  }
+
+  canPlay(board: Board, position: Position, playerId: PlayerId): boolean {
+    if (board.getSize() !== 5 || !board.isValidPosition(position.x, position.y)) return false;
+    if (this.spec.type === 'color') return true;
+    return board.getCell(position.x, position.y)?.isOwnedBy(playerId) ?? false;
+  }
+
+  applyEffect(board: Board, position: Position, playerId: PlayerId): void {
+    const targetPositions = this.getTargetPositions(board, position, playerId);
+    const delta = playerId === 'A' ? this.spec.power : -this.spec.power;
+    for (const pos of targetPositions) {
+      const cell = board.getCell(pos.x, pos.y);
+      if (cell) cell.addStability(delta);
+    }
+  }
+
+  getTargetPositions(board: Board, position: Position, playerId: PlayerId): Position[] {
+    const positions = getPuzzleFixedShapePositions(board, position, this.spec.shape);
+    if (this.spec.type === 'color') return positions;
+    return positions.filter(pos => board.getCell(pos.x, pos.y)?.isOwnedBy(playerId));
+  }
+}
 
 class ScreenFlow {
   private static readonly minBattleTurns = 4;
+  private static readonly puzzleFixedCardSpecs: PuzzleFixedCardSpec[] = [
+    { id: 'C90', name: '', description: '', type: 'color', power: 1, originIndex: 10, shape: 'TR' },
+    { id: 'F90', name: '', description: '', type: 'fort', power: 1, originIndex: 11, shape: 'LDR' },
+    { id: 'C91', name: '', description: '', type: 'color', power: 2, originIndex: 7, shape: 'TR' },
+    { id: 'F91', name: '', description: '', type: 'fort', power: 1, originIndex: 2, shape: 'P' },
+    { id: 'C92', name: '', description: '', type: 'color', power: 1, originIndex: 6, shape: 'D' },
+    { id: 'F92', name: '', description: '', type: 'fort', power: 2, originIndex: 10, shape: 'X' },
+    { id: 'C93', name: '', description: '', type: 'color', power: 1, originIndex: 11, shape: 'TR' },
+    { id: 'F93', name: '', description: '', type: 'fort', power: 3, originIndex: 6, shape: 'X' },
+    { id: 'C94', name: '', description: '', type: 'color', power: 1, originIndex: 7, shape: 'TL' },
+    { id: 'C95', name: '', description: '', type: 'color', power: 2, originIndex: 11, shape: 'LUR' },
+    { id: 'F94', name: '', description: '', type: 'fort', power: 3, originIndex: 11, shape: 'X' },
+    { id: 'C96', name: '', description: '', type: 'color', power: 2, originIndex: 11, shape: 'X' },
+    { id: 'F95', name: '', description: '', type: 'fort', power: 2, originIndex: 6, shape: 'D' },
+    { id: 'C97', name: '', description: '', type: 'color', power: 1, originIndex: 7, shape: 'V3' },
+    { id: 'C98', name: '', description: '', type: 'color', power: 1, originIndex: 18, shape: 'TL' },
+    { id: 'F96', name: '', description: '', type: 'fort', power: 2, originIndex: 23, shape: 'TL' },
+    { id: 'C99', name: '', description: '', type: 'color', power: 2, originIndex: 17, shape: 'X' },
+    { id: 'F97', name: '', description: '', type: 'fort', power: 1, originIndex: 13, shape: 'TL' },
+    { id: 'C100', name: '', description: '', type: 'color', power: 2, originIndex: 7, shape: 'LDR' },
+    { id: 'C101', name: '', description: '', type: 'color', power: 2, originIndex: 1, shape: 'TD' },
+    { id: 'F98', name: '', description: '', type: 'fort', power: 2, originIndex: 6, shape: 'H3' },
+    { id: 'C102', name: '', description: '', type: 'color', power: 2, originIndex: 2, shape: 'TR' },
+    { id: 'F99', name: '', description: '', type: 'fort', power: 2, originIndex: 3, shape: 'LDR' },
+    { id: 'C103', name: '', description: '', type: 'color', power: 1, originIndex: 12, shape: 'D' },
+    { id: 'F100', name: '', description: '', type: 'fort', power: 1, originIndex: 8, shape: 'LDR' },
+    { id: 'C104', name: '', description: '', type: 'color', power: 1, originIndex: 4, shape: 'TL' },
+    { id: 'F101', name: '', description: '', type: 'fort', power: 3, originIndex: 3, shape: 'Z' },
+    { id: 'C105', name: '', description: '', type: 'color', power: 1, originIndex: 2, shape: 'V3' },
+    { id: 'F102', name: '', description: '', type: 'fort', power: 2, originIndex: 7, shape: 'R' },
+    { id: 'C106', name: '', description: '', type: 'color', power: 2, originIndex: 6, shape: 'S' },
+    { id: 'F103', name: '', description: '', type: 'fort', power: 1, originIndex: 7, shape: 'Z' },
+    { id: 'C107', name: '', description: '', type: 'color', power: 1, originIndex: 22, shape: 'TR' },
+    { id: 'F104', name: '', description: '', type: 'fort', power: 3, originIndex: 22, shape: 'N' },
+    { id: 'C108', name: '', description: '', type: 'color', power: 1, originIndex: 11, shape: 'S' },
+    { id: 'F105', name: '', description: '', type: 'fort', power: 2, originIndex: 12, shape: 'TR' },
+    { id: 'C109', name: '', description: '', type: 'color', power: 1, originIndex: 1, shape: 'B2' },
+    { id: 'F106', name: '', description: '', type: 'fort', power: 2, originIndex: 1, shape: 'J' },
+    { id: 'C110', name: '', description: '', type: 'color', power: 1, originIndex: 6, shape: 'LDR' },
+    { id: 'F107', name: '', description: '', type: 'fort', power: 1, originIndex: 11, shape: 'X' },
+    { id: 'C111', name: '', description: '', type: 'color', power: 1, originIndex: 16, shape: 'J' },
+    { id: 'F108', name: '', description: '', type: 'fort', power: 3, originIndex: 16, shape: 'HOOK' },
+    { id: 'C112', name: '', description: '', type: 'color', power: 1, originIndex: 23, shape: 'TR' },
+    { id: 'F109', name: '', description: '', type: 'fort', power: 2, originIndex: 21, shape: 'HOOK' },
+    { id: 'C113', name: '', description: '', type: 'color', power: 2, originIndex: 5, shape: 'S' },
+    { id: 'F110', name: '', description: '', type: 'fort', power: 3, originIndex: 6, shape: 'STEP' },
+    { id: 'C114', name: '', description: '', type: 'color', power: 1, originIndex: 19, shape: 'Z' },
+    { id: 'F111', name: '', description: '', type: 'fort', power: 2, originIndex: 23, shape: 'LDR' },
+    { id: 'C115', name: '', description: '', type: 'color', power: 2, originIndex: 24, shape: 'TU' },
+    { id: 'F112', name: '', description: '', type: 'fort', power: 2, originIndex: 24, shape: 'TU' }
+  ];
   private root: HTMLElement;
   private isTransitioning = false;
   private onStart: (mode: ScreenMode, settings?: GameStartSettings) => void;
@@ -4101,12 +4312,38 @@ class ScreenFlow {
     { level: 27, boardSize: 5, cardIds: ['C11', 'C12', 'F05'], target: [0, 0, 0, 0, 0, 0, 1, 2, 1, 0, 0, 2, 3, 2, 0, 0, 1, 2, 1, 0, 0, 0, 0, 0, 0] },
     { level: 28, boardSize: 5, cardIds: ['C21', 'C14', 'F10'], target: [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 3, 3, 4, 3, 3, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0] },
     { level: 29, boardSize: 5, cardIds: ['C24', 'C11', 'F08', 'F05'], target: [0, 0, 0, 0, 0, 0, 2, 4, 2, 0, 0, 4, 4, 4, 0, 0, 2, 4, 2, 0, 0, 0, 0, 0, 0] },
-    { level: 30, boardSize: 5, cardIds: ['C24', 'F08', 'C21', 'F10'], target: [0, 0, 0, 0, 0, 0, 2, 2, 2, 0, 3, 5, 5, 5, 3, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0] }
+    { level: 30, boardSize: 5, cardIds: ['C24', 'F08', 'C21', 'F10'], target: [0, 0, 0, 0, 0, 0, 2, 2, 2, 0, 3, 5, 5, 5, 3, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0] },
+    { level: 31, boardSize: 5, cardIds: ['C90', 'F90', 'C91', 'F91'], target: [0, 0, 3, 0, 0, 1, 0, 2, 2, 0, 1, 2, 2, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+    { level: 32, boardSize: 5, cardIds: ['C92', 'F92', 'C93', 'F93', 'C94'], target: [1, 0, 2, 0, 0, 0, 6, 1, 0, 0, 3, 4, 3, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0] },
+    { level: 33, boardSize: 5, cardIds: ['C95', 'F94', 'C96', 'F95', 'C97'], target: [0, 0, 1, 0, 0, 0, 9, 1, 0, 0, 4, 7, 10, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0] },
+    { level: 34, boardSize: 5, cardIds: ['C98', 'F96', 'C99', 'F97', 'C100'], target: [0, 0, 0, 0, 0, 0, 0, 2, 2, 0, 0, 0, 5, 2, 0, 0, 2, 3, 6, 0, 0, 0, 2, 3, 0] },
+    { level: 35, boardSize: 5, cardIds: ['C101', 'F98', 'C102', 'F99', 'C103', 'F100'], target: [2, 2, 4, 4, 0, 0, 5, 2, 2, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0] },
+    { level: 36, boardSize: 5, cardIds: ['C104', 'F101', 'C105', 'F102', 'C106', 'F103'], target: [0, 0, 1, 4, 1, 0, 3, 6, 0, 1, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+    { level: 37, boardSize: 5, cardIds: ['C107', 'F104', 'C108', 'F105', 'C109', 'F106'], target: [0, 3, 1, 0, 0, 0, 3, 1, 0, 0, 0, 3, 3, 0, 0, 0, 0, 4, 1, 0, 0, 0, 4, 4, 0] },
+    { level: 38, boardSize: 5, cardIds: ['C110', 'F107', 'C111', 'F108', 'C112', 'F109'], target: [0, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 2, 0, 0, 0, 0, 4, 0, 1, 0, 0, 6, 0, 3, 1] },
+    { level: 39, boardSize: 5, cardIds: ['C113', 'F110', 'C114', 'F111', 'C115', 'F112'], target: [0, 0, 0, 0, 0, 2, 5, 0, 0, 0, 0, 2, 5, 0, 0, 0, 0, 0, 1, 5, 0, 0, 1, 7, 4] },
+    { level: 40, boardSize: 5, cardIds: ['C15', 'C13', 'C14', 'F38', 'F81', 'F80'], initialBoard: [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0], target: [0, 0, 0, 0, 0, 0, 4, 3, 1, 0, 0, 3, 4, 2, 0, 0, 3, 3, 6, 0, 0, 0, 0, 0, 0] },
+    { level: 41, boardSize: 5, cardIds: ['C101', 'F98', 'C102', 'F99', 'C103', 'F100'], initialBoard: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1], target: [4, 2, 4, 4, 0, 0, 5, 2, 2, 0, 0, 0, 1, 2, 0, 0, 1, 0, 2, 0, 0, 0, 0, 1, 1] },
+    { level: 42, boardSize: 5, cardIds: ['C104', 'F101', 'C105', 'F102', 'C106', 'F103'], initialBoard: [0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 0, 2, 0, 0, 1, 0, 0, 0], target: [0, 2, 1, 4, 1, 0, 3, 6, 0, 1, 0, 0, 6, 2, 0, 2, 0, 0, 4, 0, 0, 1, 0, 0, 0] },
+    { level: 43, boardSize: 5, cardIds: ['C107', 'F104', 'C108', 'F105', 'C109', 'F106'], initialBoard: [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1], target: [0, 3, 2, 0, 0, 0, 4, 1, 0, 0, 0, 3, 3, 0, 0, 0, 0, 4, 1, 0, 1, 0, 4, 5, 1] },
+    { level: 44, boardSize: 5, cardIds: ['C110', 'F107', 'C111', 'F108', 'C112', 'F109'], initialBoard: [0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1], target: [0, 0, 1, 1, 0, 0, 3, 1, 0, 0, 0, 2, 0, 0, 0, 0, 4, 4, 1, 0, 0, 6, 0, 3, 2] },
+    { level: 45, boardSize: 5, cardIds: ['C113', 'F110', 'C114', 'F111', 'C115', 'F112'], initialBoard: [0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0], target: [0, 0, 0, 0, 0, 3, 5, 0, 2, 0, 0, 2, 5, 5, 0, 0, 0, 0, 1, 7, 1, 0, 1, 7, 4] },
+    { level: 46, boardSize: 5, cardIds: ['C101', 'F98', 'C102', 'F99', 'C103', 'F100'], initialBoard: [0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 2, -1, 0, -1, -1, 0, 0, 0], target: [2, 2, 4, 4, 0, 0, 4, 2, 2, 0, 0, 0, 1, 2, 0, 0, 2, 2, 0, 0, -1, -1, 0, 0, 0] },
+    { level: 47, boardSize: 5, cardIds: ['C104', 'F101', 'C105', 'F102', 'C106', 'F103'], initialBoard: [0, -2, 0, 0, -1, -2, 0, 0, 0, 0, -1, 0, 0, 1, 0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0], target: [0, -2, 1, 4, 0, -2, 3, 6, 0, 1, -1, 0, 2, 5, 0, 0, 2, 0, 0, 0, 0, 2, 0, 0, 0] },
+    { level: 48, boardSize: 5, cardIds: ['C107', 'F104', 'C108', 'F105', 'C109', 'F106'], initialBoard: [0, 0, 0, -1, 0, 1, 0, 0, -1, 0, 1, 0, 0, 0, 1, 0, -2, -1, 0, 0, 0, 0, 0, 0, 0], target: [0, 3, 1, -1, 0, 1, 3, 1, -1, 0, 3, 3, 3, 0, 1, 0, -2, 3, 1, 0, 0, 0, 4, 4, 0] },
+    { level: 49, boardSize: 5, cardIds: ['C110', 'F107', 'C111', 'F108', 'C112', 'F109'], initialBoard: [0, 0, 1, -1, 0, 2, 0, 0, 0, 0, -1, 0, -1, 0, 0, 0, 0, 0, 0, 2, 0, 0, -1, 0, 0], target: [0, 0, 1, -1, 0, 2, 2, 1, 0, 0, -1, 2, -1, 0, 0, 0, 4, 0, 1, 2, 0, 6, -1, 3, 1] },
+    { level: 50, boardSize: 5, cardIds: ['C113', 'F110', 'C114', 'F111', 'C115', 'F112'], initialBoard: [1, 0, 0, 0, 0, 0, 2, 0, 0, -1, 0, 2, -1, 0, 0, 0, -1, 0, 0, 0, 0, 0, -1, 0, 0], target: [1, 0, 0, 0, 0, 2, 7, 0, 0, -1, 0, 4, 4, 0, 0, 0, -1, 0, 1, 5, 0, 0, 0, 7, 4] }
   ];
 
   constructor(root: HTMLElement, onStart: (mode: ScreenMode, settings?: GameStartSettings) => void) {
     this.root = root;
     this.onStart = onStart;
+  }
+
+  private createPuzzleCardById(id: CardId): Card | null {
+    const fixedSpec = ScreenFlow.puzzleFixedCardSpecs.find(spec => spec.id === id);
+    if (fixedSpec) return new PuzzleFixedCard(fixedSpec);
+    return CardFactory.createCardById(id);
   }
 
   showTitle(): void {
@@ -4362,14 +4599,16 @@ class ScreenFlow {
       if (categoryA !== categoryB) return categoryA - categoryB;
       return parseInt(a.substring(1)) - parseInt(b.substring(1));
     });
-    const board = Array(config.boardSize * config.boardSize).fill(0) as number[];
+    const board = config.initialBoard
+      ? [...config.initialBoard]
+      : Array(config.boardSize * config.boardSize).fill(0) as number[];
     const used = orderedCardIds.map(() => false);
     let selectedCardIndex: number | null = 0;
     let pendingPositions: number[] = [];
     let applySelectedPuzzleCard = (originIndex: number) => {};
     const history: Array<{ board: number[]; used: boolean[]; selectedCardIndex: number | null }> = [];
     const cards = orderedCardIds
-      .map(id => CardFactory.createCardById(id))
+      .map(id => this.createPuzzleCardById(id))
       .filter((card): card is Card => card !== null);
     if (cards.length !== orderedCardIds.length) return;
 
@@ -4382,10 +4621,15 @@ class ScreenFlow {
       if (cardsLeft) cardsLeft.textContent = String(used.filter(v => !v).length);
       if (turnState) turnState.textContent = `${used.filter(Boolean).length} / ${orderedCardIds.length}`;
       if (undoBtn) undoBtn.disabled = history.length === 0;
-      this.attachPuzzleCellHandlers(() => selectedCardIndex, value => {
-        if (selectedCardIndex === null) return;
-        applySelectedPuzzleCard(value);
-      });
+      this.attachPuzzleCellHandlers(
+        () => selectedCardIndex,
+        value => updatePuzzlePreview(value),
+        () => updatePuzzlePreview(null),
+        value => {
+          if (selectedCardIndex === null) return;
+          applySelectedPuzzleCard(value);
+        }
+      );
     };
 
     this.root.innerHTML = `
@@ -4433,6 +4677,24 @@ class ScreenFlow {
       pendingPositions = [];
       updateHandState();
       renderBoard();
+    };
+    const updatePuzzlePreview = (originIndex: number | null) => {
+      const grid = this.root.querySelector<HTMLElement>('#puzzle-current-grid');
+      if (!grid) return;
+
+      grid.querySelectorAll<HTMLElement>('.puzzle-cell.selected-target, .puzzle-cell.card-target').forEach((cell) => {
+        cell.classList.remove('selected-target', 'card-target');
+      });
+      pendingPositions = [];
+
+      if (originIndex === null || selectedCardIndex === null || used[selectedCardIndex]) return;
+
+      const effects = this.getPuzzleCardEffects(board, config.boardSize, cards[selectedCardIndex].getId(), originIndex);
+      pendingPositions = effects.map(effect => effect.index);
+      pendingPositions.forEach((index) => {
+        const cell = grid.querySelector<HTMLElement>(`[data-cell-index="${index}"]`);
+        if (cell) cell.classList.add('selected-target', 'card-target');
+      });
     };
     const updateHandState = () => {
       this.root.querySelectorAll<HTMLElement>('.puzzle-hand-card').forEach((el) => {
@@ -4495,7 +4757,7 @@ class ScreenFlow {
         : value < 0
           ? ` player-b stability-${Math.min(Math.abs(value), 5)}`
           : ' neutral';
-      const pendingClass = interactive && pendingSet.has(index) ? ' selected-target' : '';
+      const pendingClass = interactive && pendingSet.has(index) ? ' selected-target card-target' : '';
       const attrs = interactive ? ` role="button" tabindex="0" data-cell-index="${index}"` : '';
       return `<div class="puzzle-cell cell${stateClass}${pendingClass}"${attrs}><span>${value}</span></div>`;
     }).join('');
@@ -4505,13 +4767,28 @@ class ScreenFlow {
     const targetIndexes = this.getPuzzleCardTargetIndexes(boardSize, cardId, originIndex);
     const ownOnly = (indexes: number[]) => indexes.filter(index => board[index] > 0);
     const numericColorId = cardId.startsWith('C') ? Number(cardId.slice(1)) : 0;
+    const numericFortId = cardId.startsWith('F') ? Number(cardId.slice(1)) : 0;
 
     if (numericColorId >= 27) {
-      const card = CardFactory.createCardById(cardId);
+      const card = this.createPuzzleCardById(cardId);
       const power = card && 'getPower' in card && typeof (card as any).getPower === 'function'
         ? (card as any).getPower()
         : 1;
       return targetIndexes.map(index => ({ index, delta: power }));
+    }
+
+    if (numericFortId >= 14) {
+      const card = this.createPuzzleCardById(cardId);
+      if (!card) return [];
+      const power = 'getPower' in card && typeof (card as any).getPower === 'function'
+        ? (card as any).getPower()
+        : 1;
+      const puzzleBoard = this.createPuzzleBoardSnapshot(board, boardSize);
+      const x = originIndex % boardSize;
+      const y = Math.floor(originIndex / boardSize);
+      if (!card.canPlay(puzzleBoard, { x, y }, 'A')) return [];
+      return card.getTargetPositions(puzzleBoard, { x, y }, 'A')
+        .map(pos => ({ index: pos.y * boardSize + pos.x, delta: power }));
     }
 
     if (cardId === 'F01') {
@@ -4535,6 +4812,15 @@ class ScreenFlow {
     return targetIndexes.map(index => ({ index, delta: 1 }));
   }
 
+  private createPuzzleBoardSnapshot(values: number[], boardSize: number): Board {
+    const puzzleBoard = new Board(boardSize);
+    values.forEach((value, index) => {
+      const cell = puzzleBoard.getCell(index % boardSize, Math.floor(index / boardSize));
+      if (cell) cell.setStability(value);
+    });
+    return puzzleBoard;
+  }
+
   private getPuzzleCardTargetIndexes(boardSize: number, cardId: CardId, originIndex: number): number[] {
     const x = originIndex % boardSize;
     const y = Math.floor(originIndex / boardSize);
@@ -4547,9 +4833,10 @@ class ScreenFlow {
     const numericColorId = cardId.startsWith('C') ? Number(cardId.slice(1)) : 0;
 
     if (numericColorId >= 27) {
-      const card = CardFactory.createCardById(cardId);
+      const card = this.createPuzzleCardById(cardId);
       if (card) {
         const previewBoard = new Board(boardSize);
+        if (!card.canPlay(previewBoard, { x, y }, 'A')) return [];
         return card.getTargetPositions(previewBoard, { x, y }, 'A')
           .map(pos => pos.y * boardSize + pos.x);
       }
@@ -4737,7 +5024,7 @@ class ScreenFlow {
     let pattern = patterns[cardId];
     const numericColorId = cardId.startsWith('C') ? Number(cardId.slice(1)) : 0;
     if (!pattern && numericColorId >= 27) {
-      const card = CardFactory.createCardById(cardId);
+      const card = this.createPuzzleCardById(cardId);
       if (card) {
         const previewBoardSize = numericColorId >= 67 ? 7 : 5;
         const previewBoard = new Board(previewBoardSize);
@@ -4765,20 +5052,32 @@ class ScreenFlow {
 
   private attachPuzzleCellHandlers(
     getSelected: () => number | null,
-    setPending: (value: number) => void
+    previewTarget: (value: number) => void,
+    clearPreview: () => void,
+    applyTarget: (value: number) => void
   ): void {
     this.root.querySelectorAll<HTMLElement>('#puzzle-current-grid .puzzle-cell').forEach((cell) => {
+      const getTargetIndex = () => Number(cell.dataset.cellIndex);
       const preview = () => {
         const selected = getSelected();
         if (selected === null) return;
-        const index = Number(cell.dataset.cellIndex);
-        setPending(index);
+        previewTarget(getTargetIndex());
       };
-      cell.addEventListener('click', preview);
+      cell.addEventListener('mouseenter', preview);
+      cell.addEventListener('focus', preview);
+      cell.addEventListener('mouseleave', clearPreview);
+      cell.addEventListener('blur', clearPreview);
+      cell.addEventListener('click', () => {
+        const selected = getSelected();
+        if (selected === null) return;
+        applyTarget(getTargetIndex());
+      });
       cell.addEventListener('keydown', (ev) => {
         if (ev.key === 'Enter' || ev.key === ' ') {
           ev.preventDefault();
-          preview();
+          const selected = getSelected();
+          if (selected === null) return;
+          applyTarget(getTargetIndex());
         }
       });
     });

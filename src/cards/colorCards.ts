@@ -874,7 +874,8 @@ export function createAdditionalColorCards(): ColorCard[] {
     new ConfigurableColorCard('C74', '戦線拡張', '指定行と隣接行の5列範囲の色ポイントを+2', 2, 6, 7, (board, p) => rectPositions(board, p.x - 2, p.y - 1, 5, 2)),
     new ConfigurableColorCard('C75', '大包囲', '指定マス周囲8マスの色ポイントを+2。中心は変化なし', 2, 6, 7, (board, p) =>
       offsetsFrom(board, p, [{ x: -1, y: -1 }, { x: 0, y: -1 }, { x: 1, y: -1 }, { x: -1, y: 0 }, { x: 1, y: 0 }, { x: -1, y: 1 }, { x: 0, y: 1 }, { x: 1, y: 1 }])),
-    new ConfigurableColorCard('C76', '決戦領域', '7×7限定。指定3×3ブロックの色ポイントを+3', 3, 7, 7, (board, p) => rectPositions(board, p.x - 1, p.y - 1, 3, 3))
+    new ConfigurableColorCard('C76', '決戦領域', '7×7限定。指定3×3ブロックの色ポイントを+3', 3, 7, 7, (board, p) => rectPositions(board, p.x - 1, p.y - 1, 3, 3)),
+    new ConfigurableColorCard('C80', '縦隣補正塗り', '縦隣接2マスの色ポイントを+1', 1, 5, 7, (board, p) => offsetsFrom(board, p, [{ x: 0, y: 0 }, { x: 0, y: 1 }]))
   ];
 }
 

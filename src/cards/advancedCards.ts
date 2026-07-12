@@ -238,7 +238,9 @@ const fortSpecs: CardSpec[] = [
   { id: 'F60', name: '全前線装甲', description: '自色マスを最大8マス、色ポイント+2', power: 2, minBoardSize: 6, maxBoardSize: 7, targetKind: 'globalLimit', limit: 8 },
   { id: 'F61', name: '4×4装甲化', description: '4×4内の自色マスだけ色ポイント+2', power: 2, minBoardSize: 6, maxBoardSize: 7, targetKind: 'block4x4' },
   { id: 'F62', name: '最終防壁', description: '3×3内の自色マスだけ色ポイント+3', power: 3, minBoardSize: 7, maxBoardSize: 7, targetKind: 'block3x3' },
-  { id: 'F63', name: '領域固定', description: '指定自色連結領域の最大12マスを色ポイント+2', power: 2, minBoardSize: 7, maxBoardSize: 7, targetKind: 'connected', limit: 12 }
+  { id: 'F63', name: '領域固定', description: '指定自色連結領域の最大12マスを色ポイント+2', power: 2, minBoardSize: 7, maxBoardSize: 7, targetKind: 'connected', limit: 12 },
+  { id: 'F80', name: '縦隣補正', description: '縦隣接2マス内の自色マスだけ色ポイント+1', power: 1, minBoardSize: 5, maxBoardSize: 7, targetKind: 'vertical2' },
+  { id: 'F81', name: '横三連補正', description: '横3マス内の自色マスだけ色ポイント+2', power: 2, minBoardSize: 5, maxBoardSize: 7, targetKind: 'horizontal3' }
 ];
 
 const disruptionSpecs: CardSpec[] = [
